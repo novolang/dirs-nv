@@ -1,0 +1,226 @@
+// dirskind.nv — the eight directories, the three platforms, and the
+// table that maps one onto the other.
+//
+// EVERY FUNCTION HERE IS PURE
+//
+// This module knows what `XDG_CONFIG_HOME` is called and what it falls
+// back to.  It does not know what it is set to.  That separation is
+// what makes the mapping reviewable: a reader checking this package
+// against the XDG Base Directory Specification reads one table, and a
+// reader checking it against the `directories` crate reads the same
+// one.
+//
+// WHY EIGHT AND NOT FIVE
+//
+// The specification names four per-user directories and a runtime one.
+// Two more exist because the platforms need them and a program that
+// ignores them behaves badly on those platforms:
+//
+//   config-local   On Windows, configuration that should NOT follow a
+//                  user between machines — a window position, a
+//                  machine-specific path.  Roaming a cache-sized file
+//                  across a domain is what gives roaming profiles
+//                  their reputation.
+//   data-local     The same distinction for data.
+//
+// On XDG systems both are the same directory as their roaming
+// counterpart, because there is no roaming.  A program can use them
+// everywhere and be correct everywhere, which is the point of having
+// them at all.
+//
+// And `executable` is the eighth: `$XDG_BIN_HOME`, added in version
+// 0.8 of the specification, which has no counterpart on either other
+// platform.
+
+// One of the directories a program is meant to write into.
+//
+// ```novo
+// use dirskind
+//
+// fn main() [io]
+//     println(dirskind.kind_name(DirsConfig))
+// ```
+pub enum DirsKind
+    // The user's home directory.  Every other directory here is
+    // derived from it on at least one platform.
+    DirsHome
+    // Configuration a user edits: `$XDG_CONFIG_HOME`, which defaults
+    // to `$HOME/.config`.
+    DirsConfig
+    // Configuration that should not follow a user between machines.
+    // The same as `DirsConfig` except on Windows.
+    DirsConfigLocal
+    // Data a program wrote and must not lose: `$XDG_DATA_HOME`,
+    // defaulting to `$HOME/.local/share`.
+    DirsData
+    // Data that should not follow a user between machines.  The same
+    // as `DirsData` except on Windows.
+    DirsDataLocal
+    // Data a program can regenerate: `$XDG_CACHE_HOME`, defaulting to
+    // `$HOME/.cache`.  Anything here may be deleted between runs.
+    DirsCache
+    // State that is neither configuration nor precious data —
+    // logs, history, a window layout, a recently-used list.
+    // `$XDG_STATE_HOME`, defaulting to `$HOME/.local/state`.
+    DirsState
+    // A directory for sockets, named pipes and lock files, cleared
+    // when the user logs out: `$XDG_RUNTIME_DIR`.  It is the one
+    // directory with NO fallback on any platform, and the one a caller
+    // must be prepared to be told nothing about.
+    DirsRuntime
+    // Where a user's own executables go: `$XDG_BIN_HOME`, defaulting
+    // to `$HOME/.local/bin`.  XDG only; neither other platform has a
+    // counterpart.
+    DirsExecutable
+
+// Which set of rules a directory is resolved by.
+//
+// Not an operating system: the rules are what differ, and a program
+// cross-compiling, generating an installer, or writing a test for
+// another platform's layout names the rules it wants.
+//
+// ```novo
+// use dirskind
+//
+// fn main() [io]
+//     println(dirskind.platform_name(DirsXdg))
+// ```
+pub enum DirsPlatform
+    // The XDG Base Directory Specification, version 0.8.  What Linux
+    // and the BSDs use.
+    DirsXdg
+    // The macOS layout: `~/Library/Application Support`,
+    // `~/Library/Caches`, `~/Library/Preferences`.
+    DirsMacos
+    // The Windows layout: the roaming and local application-data
+    // folders, read from `APPDATA` and `LOCALAPPDATA`.
+    DirsWindows
+
+// The kind's name for a message: `"config"`, `"data-local"`,
+// `"runtime"`, and the rest.
+//
+// ```novo
+// use dirskind
+//
+// fn main() [io]
+//     println(dirskind.kind_name(DirsDataLocal))
+// ```
+pub fn kind_name(k: DirsKind) -> Str []
+    todo("dirs-nv.dirskind.kind_name")
+
+// The platform's name for a message: `"xdg"`, `"macos"`, `"windows"`.
+//
+// ```novo
+// use dirskind
+//
+// fn main() [io]
+//     println(dirskind.platform_name(DirsWindows))
+// ```
+pub fn platform_name(p: DirsPlatform) -> Str []
+    todo("dirs-nv.dirskind.platform_name")
+
+// Every kind, in the order they are documented.
+//
+// A tool that prints where a program would put each of its
+// directories, and a test that checks the table is complete, both want
+// the list rather than nine calls.
+//
+// ```novo
+// use dirskind
+//
+// fn main() [io]
+//     println("${list.len(dirskind.kinds())}")
+// ```
+pub fn kinds() -> [DirsKind] []
+    todo("dirs-nv.dirskind.kinds")
+
+// The environment variable a kind is read from on a platform, or `""`
+// when that platform reads none.
+//
+// `DirsConfig` on `DirsXdg` is `"XDG_CONFIG_HOME"`; on `DirsMacos` it
+// is `""`, because macOS derives every directory from the home
+// directory and consults no variable of its own.
+//
+// This is the function that makes the mapping auditable: a reader
+// checking this package against the specification reads it rather than
+// a body.
+//
+// ```novo
+// use dirskind
+//
+// fn main() [io]
+//     println(dirskind.variable_of(DirsConfig, DirsXdg))
+//     println(dirskind.variable_of(DirsData, DirsWindows))
+// ```
+pub fn variable_of(k: DirsKind, p: DirsPlatform) -> Str []
+    todo("dirs-nv.dirskind.variable_of")
+
+// Whether a kind can be answered when its variable is unset.
+//
+// True for every kind but two.  `DirsRuntime` has no fallback on any
+// platform: the XDG specification says an application must not create
+// one itself, and neither macOS nor Windows has an equivalent
+// directory. `DirsExecutable` has none outside XDG.
+//
+// A caller that reads this knows in advance which answers may be
+// `None`, rather than finding out per call.
+//
+// ```novo
+// use dirskind
+//
+// fn main() [io]
+//     println("${dirskind.has_fallback(DirsConfig, DirsXdg)}")
+//     println("${dirskind.has_fallback(DirsRuntime, DirsXdg)}")
+// ```
+pub fn has_fallback(k: DirsKind, p: DirsPlatform) -> Bool []
+    todo("dirs-nv.dirskind.has_fallback")
+
+// The path appended to the home directory when a kind's variable is
+// unset, or `""` when the kind has no fallback on that platform.
+//
+// `DirsConfig` on `DirsXdg` is `".config"`; on `DirsMacos` it is
+// `"Library/Application Support"`.  The second half of the table
+// `variable_of` starts.
+//
+// ```novo
+// use dirskind
+//
+// fn main() [io]
+//     println(dirskind.fallback_of(DirsCache, DirsXdg))
+//     println(dirskind.fallback_of(DirsCache, DirsMacos))
+// ```
+pub fn fallback_of(k: DirsKind, p: DirsPlatform) -> Str []
+    todo("dirs-nv.dirskind.fallback_of")
+
+// Whether a kind is the same directory as another on a platform.
+//
+// `DirsConfigLocal` and `DirsConfig` are the same everywhere except on
+// Windows, and a program that wants to warn about writing a large file
+// into a roaming folder needs to know which platform it is on to know
+// whether the distinction exists at all.
+//
+// ```novo
+// use dirskind
+//
+// fn main() [io]
+//     println("${dirskind.same_as(DirsConfigLocal, DirsConfig, DirsXdg)}")
+//     println("${dirskind.same_as(DirsConfigLocal, DirsConfig, DirsWindows)}")
+// ```
+pub fn same_as(a: DirsKind, b: DirsKind, p: DirsPlatform) -> Bool []
+    todo("dirs-nv.dirskind.same_as")
+
+// The path separator a platform spells its directories with: `"/"` or
+// `"\\"`.
+//
+// The one place in this package where a separator is a decision rather
+// than a character, and it is a fact about the platform the caller
+// named rather than an operation on a path.
+//
+// ```novo
+// use dirskind
+//
+// fn main() [io]
+//     println(dirskind.separator_of(DirsWindows))
+// ```
+pub fn separator_of(p: DirsPlatform) -> Str []
+    todo("dirs-nv.dirskind.separator_of")

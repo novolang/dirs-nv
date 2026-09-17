@@ -1,0 +1,46 @@
+[package]
+name        = "dirs-nv"
+version     = "0.0.1"
+description = "The per-user directories a program is meant to write into: the XDG base directories and their macOS and Windows counterparts — home, config, data, data-local, cache, state, runtime and executable, the system-wide search lists, and the project-scoped forms — resolved from a snapshot of the environment taken once."
+license     = "Apache-2.0"
+
+# An INTERFACE release: every `pub fn` body is a `todo()`, so the
+# signatures and the effect rows are published and nothing is
+# implemented.  `novo pkg publish` recognises the shape and requires
+# both the draft stability and the 0.0.x version; the first
+# implementation is the 0.1.0 published over it.
+stability   = "draft"
+
+# `host`, and the environment is the whole reason.  `env.get` is
+# `[io]`, so a package that reads `XDG_CONFIG_HOME` cannot be `core`.
+#
+# `[io]` is also the ONLY effect here.  Nothing opens a directory,
+# creates one, or asks whether one exists: every function answers where
+# a path would be, and a caller that wants the directory to exist
+# creates it with the `[fs]` it already has.  `dirsenv.capture` and the
+# two calls beside it are the only functions in the package that
+# perform anything at all; every other answer is a pure function of the
+# snapshot they return.
+layer       = "host"
+
+category    = "tooling"
+
+tags        = ["xdg", "basedir", "directories", "config", "cache", "platformdirs", "paths", "tooling"]
+repository  = "https://github.com/novolang/dirs-nv"
+maintainers = ["novo-lang"]
+novo        = ">= 0.9.0"
+
+# A library: no `main`, so `novo pkg build` type-checks and
+# effect-checks every module under `src/` and writes no binary.
+
+[docs.pages]
+"README.md" = "The XDG base directories, and their macOS and Windows counterparts"
+
+[dependencies]
+# NONE, AND THE ABSENCE IS A FINDING RATHER THAN AN OVERSIGHT.  The
+# obvious dependency would be a path library, and this package does not
+# need one: every answer it builds is a base directory from the
+# environment with `/` and a folder name appended, and it never
+# normalises, resolves or compares a path.  The one place a separator
+# matters is the Windows spelling, which is a fact about the platform
+# the caller named and not an operation on a path.

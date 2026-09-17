@@ -1,0 +1,102 @@
+// dirssite_tests.nv — the lists, and the order a file is looked for
+// in.
+//
+// RED ON PURPOSE: every assertion reaches `not implemented:
+// dirs-nv.dirssite.<fn>`.  What is asserted is that the defaults are
+// the specification's, in its order, that the user's own directory
+// comes first, and that a kind with no system-wide counterpart still
+// answers a usable list.
+
+use std.test
+use dirsenv
+use dirssite
+
+@test
+fn test_the_defaults_are_the_specifications_and_in_its_order() [io]
+    let e = dirsenv.of(DirsXdg, "/home/ada")
+
+    test.case("XDG_DATA_DIRS defaults to two entries, local first")
+    let data = dirssite.site_data(e)
+    test.assert(list.len(data) == 2)
+    test.assert(data[0] == "/usr/local/share")
+    test.assert(data[1] == "/usr/share")
+
+    test.case("and XDG_CONFIG_DIRS to one")
+    let config = dirssite.site_config(e)
+    test.assert(list.len(config) == 1)
+    test.assert(config[0] == "/etc/xdg")
+
+@test
+fn test_a_set_list_is_split_and_its_empty_entries_are_dropped() [io]
+    let e = dirsenv.with_var(dirsenv.of(DirsXdg, "/home/ada"),
+                             "XDG_DATA_DIRS", "/opt/share::/usr/share")
+
+    test.case("the entries in the order they were written")
+    let data = dirssite.site_data(e)
+    test.assert(list.len(data) == 2)
+    test.assert(data[0] == "/opt/share")
+    test.assert(data[1] == "/usr/share")
+
+    test.case("a path of nothing is not a directory")
+    test.assert(data[1] != "")
+
+@test
+fn test_the_users_own_directory_comes_first() [io]
+    // The rule that lets a user's file override a package's default.
+    let e = dirsenv.of(DirsXdg, "/home/ada")
+
+    test.case("the user's directory, then each system-wide entry")
+    let path = dirssite.search_path(e, DirsConfig)
+    test.assert(list.len(path) == 2)
+    test.assert(path[0] == "/home/ada/.config")
+    test.assert(path[1] == "/etc/xdg")
+
+    test.case("and the same for data, which has two system entries")
+    test.assert(list.len(dirssite.search_path(e, DirsData)) == 3)
+
+@test
+fn test_a_kind_with_no_system_directories_still_answers_a_usable_list() [io]
+    // So a caller can use `search_path` for every kind without first
+    // asking which ones have lists.
+    let e = dirsenv.of(DirsXdg, "/home/ada")
+
+    test.case("only two kinds have system-wide directories")
+    test.assert(dirssite.has_site_dirs(DirsConfig))
+    test.assert(dirssite.has_site_dirs(DirsData))
+    test.assert(not dirssite.has_site_dirs(DirsCache))
+    test.assert(not dirssite.has_site_dirs(DirsState))
+    test.assert(not dirssite.has_site_dirs(DirsRuntime))
+
+    test.case("and a cache search path is the user's cache directory alone")
+    let path = dirssite.search_path(e, DirsCache)
+    test.assert(list.len(path) == 1)
+    test.assert(path[0] == "/home/ada/.cache")
+
+    test.case("a kind with no answer at all has an empty list")
+    test.assert(list.len(dirssite.search_path(e, DirsRuntime)) == 0)
+
+@test
+fn test_the_candidates_are_the_search_path_with_a_name_on_each() [io]
+    // What a program hands to its own "open the first of these that
+    // exists" loop, and what it prints when none of them did.
+    let e = dirsenv.of(DirsXdg, "/home/ada")
+    let found = dirssite.candidates(e, DirsConfig, "novo/config.toml")
+
+    test.case("one candidate per search path entry, in the same order")
+    test.assert(list.len(found) == 2)
+    test.assert(found[0] == "/home/ada/.config/novo/config.toml")
+    test.assert(found[1] == "/etc/xdg/novo/config.toml")
+
+@test
+fn test_windows_separates_a_list_with_a_semicolon() [io]
+    // A colon there is part of a drive letter, and splitting on one
+    // would cut `C:\ProgramData` in half.
+    test.case("the separator each platform uses")
+    test.assert(dirssite.list_separator_of(DirsXdg) == ":")
+    test.assert(dirssite.list_separator_of(DirsMacos) == ":")
+    test.assert(dirssite.list_separator_of(DirsWindows) == ";")
+
+    test.case("and Windows has one system-wide directory, not a list")
+    let win = dirsenv.with_var(dirsenv.of(DirsWindows, "C:\\Users\\Ada"),
+                               "ProgramData", "C:\\ProgramData")
+    test.assert(list.len(dirssite.site_data(win)) == 1)

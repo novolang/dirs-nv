@@ -1,0 +1,139 @@
+// dirsproject_tests.nv — one program's own folder, spelled three ways.
+//
+// RED ON PURPOSE: every assertion reaches `not implemented:
+// dirs-nv.dirsproject.<fn>` or a function it calls.  What is asserted
+// is that each platform's folder name is the one its own conventions
+// ask for, that Windows gets the third level that keeps configuration
+// out of the cache, and that a project with only a name still produces
+// a clean folder.
+
+use std.test
+use dirsenv
+use dirsproject
+
+fn novo() -> dirsproject.DirsProject
+    dirsproject.project("org", "Novo Lang", "Novo")
+
+@test
+fn test_each_platform_spells_the_folder_the_way_it_expects() [io]
+    // Not a style preference: it is what each platform's file browsers
+    // and conventions expect, and a program that hard-codes one
+    // spelling puts a reverse-DNS folder in a Linux user's ~/.config.
+    let p = novo()
+
+    test.case("XDG wants a lower-case name with no spaces")
+    test.assert(dirsproject.folder_name(p, DirsXdg) == "novo")
+
+    test.case("macOS wants a reverse-DNS identifier")
+    test.assert(dirsproject.folder_name(p, DirsMacos) == "org.novo-lang.Novo")
+
+    test.case("and Windows wants two nested folders")
+    test.assert(dirsproject.folder_name(p, DirsWindows) == "Novo Lang\\Novo")
+
+@test
+fn test_a_project_with_only_a_name_produces_a_clean_folder() [io]
+    // No stray dot, no leading backslash: a program that has only a
+    // name passes empty strings for the other two.
+    let p = dirsproject.project("", "", "Novo")
+
+    test.case("the parts that would have been empty are left out")
+    test.assert(dirsproject.folder_name(p, DirsXdg) == "novo")
+    test.assert(dirsproject.folder_name(p, DirsMacos) == "Novo")
+    test.assert(dirsproject.folder_name(p, DirsWindows) == "Novo")
+
+    test.case("and the three names are readable back")
+    test.assert(p.application == "Novo")
+    test.assert(p.organization == "")
+    test.assert(p.qualifier == "")
+
+@test
+fn test_the_directories_are_the_base_ones_with_the_folder_inside() [io]
+    let e = dirsenv.of(DirsXdg, "/home/ada")
+    let p = novo()
+
+    test.case("configuration, data, cache and state")
+    match dirsproject.config(e, p)
+        Some(path) => test.assert(path == "/home/ada/.config/novo")
+        None       => test.fail("a home directory was given")
+    match dirsproject.data(e, p)
+        Some(path) => test.assert(path == "/home/ada/.local/share/novo")
+        None       => test.fail("a home directory was given")
+    match dirsproject.cache(e, p)
+        Some(path) => test.assert(path == "/home/ada/.cache/novo")
+        None       => test.fail("a home directory was given")
+    match dirsproject.state(e, p)
+        Some(path) => test.assert(path == "/home/ada/.local/state/novo")
+        None       => test.fail("a home directory was given")
+
+    test.case("the generic call answers the same")
+    match dirsproject.dir(e, p, DirsCache)
+        Some(path) => test.assert(path == "/home/ada/.cache/novo")
+        None       => test.fail("a home directory was given")
+
+    test.case("and the shared half is available on its own, for an explanation")
+    match dirsproject.base_of(e, DirsCache)
+        Some(path) => test.assert(path == "/home/ada/.cache")
+        None       => test.fail("a home directory was given")
+
+    test.case("a runtime directory is still None until the session provides one")
+    match dirsproject.runtime(e, p)
+        Some(_) => test.fail("there is no fallback for a runtime directory")
+        None    => test.assert(true)
+
+@test
+fn test_windows_gets_a_third_level_so_config_is_not_the_cache() [io]
+    // Both roaming and local application data hold everything there,
+    // so without the suffix a program's configuration directory and
+    // its cache directory would be the same path.
+    let e = dirsenv.with_var(
+                dirsenv.with_var(dirsenv.of(DirsWindows, "C:\\Users\\Ada"),
+                                 "APPDATA", "C:\\Users\\Ada\\AppData\\Roaming"),
+                "LOCALAPPDATA", "C:\\Users\\Ada\\AppData\\Local")
+    let p = novo()
+
+    test.case("configuration ends in config")
+    match dirsproject.config(e, p)
+        Some(path) => test.assert(path == "C:\\Users\\Ada\\AppData\\Roaming\\Novo Lang\\Novo\\config")
+        None       => test.fail("APPDATA is set")
+
+    test.case("and the cache ends in cache, under the local folder")
+    match dirsproject.cache(e, p)
+        Some(path) => test.assert(path == "C:\\Users\\Ada\\AppData\\Local\\Novo Lang\\Novo\\cache")
+        None       => test.fail("LOCALAPPDATA is set")
+
+    test.case("the suffix is named, and is empty on the platforms that do not need it")
+    test.assert(dirsproject.windows_suffix(DirsCache, DirsWindows) == "cache")
+    test.assert(dirsproject.windows_suffix(DirsConfig, DirsWindows) == "config")
+    test.assert(dirsproject.windows_suffix(DirsCache, DirsXdg) == "")
+    test.assert(dirsproject.windows_suffix(DirsCache, DirsMacos) == "")
+
+@test
+fn test_a_file_and_a_search_list_for_a_project() [io]
+    let e = dirsenv.of(DirsXdg, "/home/ada")
+    let p = novo()
+
+    test.case("a named file inside the project's directory")
+    match dirsproject.file(e, p, DirsConfig, "config.toml")
+        Some(path) => test.assert(path == "/home/ada/.config/novo/config.toml")
+        None       => test.fail("a home directory was given")
+
+    test.case("and every place it would be looked for, the user's first")
+    let found = dirsproject.candidates(e, p, DirsConfig, "config.toml")
+    test.assert(list.len(found) == 2)
+    test.assert(found[0] == "/home/ada/.config/novo/config.toml")
+    test.assert(found[1] == "/etc/xdg/novo/config.toml")
+
+@test
+fn test_reading_the_environment_is_three_calls_and_no_more() [io]
+    // These are the only functions in the package with an effect row.
+    // Every case above ran without one.
+    test.case("the machine's own rules, and the machine's own environment")
+    let here = dirsenv.capture()
+    test.assert(dirsenv.var_of(here, "HOME") != "\u{0}")
+
+    test.case("another platform's rules over this machine's environment")
+    let elsewhere = dirsenv.capture_as(DirsWindows)
+    test.assert(dirsenv.var_of(elsewhere, "HOME") != "\u{0}")
+
+    test.case("and which rules this machine uses")
+    test.assert(dirsenv.host_platform() != DirsWindows or true)

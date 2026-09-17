@@ -1,0 +1,256 @@
+// dirsproject.nv — one program's own directories inside the shared
+// ones.
+//
+// THREE NAMES, BECAUSE THE PLATFORMS ASK FOR THREE DIFFERENT THINGS
+//
+// A program does not put its files directly in the configuration
+// directory; it puts them in a folder of its own inside it.  What that
+// folder is called differs, and it is not a style preference — it is
+// what each platform's own conventions and its file browsers expect:
+//
+//   XDG       a lower-case name with no spaces: `novo`
+//   macOS     a reverse-DNS identifier: `org.novo-lang.Novo`
+//   Windows   two nested folders: `Novo Lang\Novo`
+//
+// So a project is named once, with a qualifier, an organisation and an
+// application, and each platform's spelling is derived.  That is the
+// `directories` crate's design, and it is right for the same reason:
+// a program that hard-codes one spelling is a program that puts a
+// reverse-DNS folder in a Linux user's `~/.config`.
+//
+// WHERE THE WINDOWS SUFFIX COMES FROM
+//
+// On Windows the roaming and local application-data folders hold both
+// configuration and data, so a program that used the folder itself for
+// both would mix them.  The convention, and what `directories` does,
+// is a third level: `Novo Lang\Novo\config`, `…\data`, `…\cache`.  On
+// the other two platforms the base directories are already separate,
+// so no suffix is added.
+
+use dirsenv
+use dirskind
+
+// A program, named the way each platform wants it named.
+//
+// ```novo
+// use dirsproject
+//
+// fn main() [io]
+//     println(dirsproject.project("org", "Novo Lang", "Novo").application)
+// ```
+pub struct DirsProject
+    // The reverse-DNS qualifier: `"org"`, `"com"`, `"io"`.  Used on
+    // macOS and ignored elsewhere.
+    qualifier: Str
+    // The organisation, spelled for a human: `"Novo Lang"`.  Used on
+    // macOS and Windows.
+    organization: Str
+    // The application, spelled for a human: `"Novo"`.  Used on every
+    // platform, lower-cased and dashed on XDG.
+    application: Str
+
+// A project from its three names.
+//
+// An empty qualifier or organisation is allowed: a program that has
+// only a name passes `""` for both, and the derived folder names leave
+// out the parts that would have been empty rather than producing a
+// name with a stray dot or backslash in it.
+//
+// ```novo
+// use dirsproject
+//
+// fn main() [io]
+//     println(dirsproject.folder_name(dirsproject.project("org", "Novo Lang", "Novo"), DirsXdg))
+// ```
+pub fn project(qualifier: Str, organization: Str, application: Str) -> DirsProject []
+    todo("dirs-nv.dirsproject.project")
+
+// The folder name this project uses on a platform.
+//
+// `"novo"` on XDG, `"org.novo-lang.Novo"` on macOS,
+// `"Novo Lang\\Novo"` on Windows.  The whole of the naming rule, in
+// one function a reader can check against the table at the top of this
+// module.
+//
+// ```novo
+// use dirsproject
+//
+// fn main() [io]
+//     let p = dirsproject.project("org", "Novo Lang", "Novo")
+//     println(dirsproject.folder_name(p, DirsMacos))
+// ```
+pub fn folder_name(p: DirsProject, platform: dirskind.DirsPlatform) -> Str []
+    todo("dirs-nv.dirsproject.folder_name")
+
+// Where this project's directory of a kind is.
+//
+// The base directory for that kind, with the project's folder name
+// appended, and on Windows with the kind's suffix after it.  `None`
+// exactly when the base directory is `None`.
+//
+// ```novo
+// use dirsenv
+// use dirsproject
+//
+// fn main() [io]
+//     let e = dirsenv.of(DirsXdg, "/home/ada")
+//     let p = dirsproject.project("org", "Novo Lang", "Novo")
+//     match dirsproject.dir(e, p, DirsConfig)
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn dir(e: dirsenv.DirsEnv, p: DirsProject, k: dirskind.DirsKind) -> ?Str []
+    todo("dirs-nv.dirsproject.dir")
+
+// This project's configuration directory.
+//
+// ```novo
+// use dirsenv
+// use dirsproject
+//
+// fn main() [io]
+//     let e = dirsenv.of(DirsXdg, "/home/ada")
+//     match dirsproject.config(e, dirsproject.project("org", "Novo Lang", "Novo"))
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn config(e: dirsenv.DirsEnv, p: DirsProject) -> ?Str []
+    todo("dirs-nv.dirsproject.config")
+
+// This project's data directory.
+//
+// ```novo
+// use dirsenv
+// use dirsproject
+//
+// fn main() [io]
+//     let e = dirsenv.of(DirsXdg, "/home/ada")
+//     match dirsproject.data(e, dirsproject.project("org", "Novo Lang", "Novo"))
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn data(e: dirsenv.DirsEnv, p: DirsProject) -> ?Str []
+    todo("dirs-nv.dirsproject.data")
+
+// This project's cache directory.
+//
+// ```novo
+// use dirsenv
+// use dirsproject
+//
+// fn main() [io]
+//     let e = dirsenv.of(DirsXdg, "/home/ada")
+//     match dirsproject.cache(e, dirsproject.project("org", "Novo Lang", "Novo"))
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn cache(e: dirsenv.DirsEnv, p: DirsProject) -> ?Str []
+    todo("dirs-nv.dirsproject.cache")
+
+// This project's state directory: logs, history, a window layout.
+//
+// ```novo
+// use dirsenv
+// use dirsproject
+//
+// fn main() [io]
+//     let e = dirsenv.of(DirsXdg, "/home/ada")
+//     match dirsproject.state(e, dirsproject.project("org", "Novo Lang", "Novo"))
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn state(e: dirsenv.DirsEnv, p: DirsProject) -> ?Str []
+    todo("dirs-nv.dirsproject.state")
+
+// This project's runtime directory, or `None`.
+//
+// `None` whenever `$XDG_RUNTIME_DIR` is unset, which is always on
+// macOS and Windows.  See `dirsbase.runtime`.
+//
+// ```novo
+// use dirsenv
+// use dirsproject
+//
+// fn main() [io]
+//     let e = dirsenv.of(DirsXdg, "/home/ada")
+//     match dirsproject.runtime(e, dirsproject.project("org", "Novo Lang", "Novo"))
+//         Some(path) => println(path)
+//         None       => println("no runtime directory; use a temporary one")
+// ```
+pub fn runtime(e: dirsenv.DirsEnv, p: DirsProject) -> ?Str []
+    todo("dirs-nv.dirsproject.runtime")
+
+// A path inside this project's directory of a kind.
+//
+// `file(e, p, DirsConfig, "config.toml")` is the project's
+// configuration directory with that name appended.
+//
+// ```novo
+// use dirsenv
+// use dirsproject
+//
+// fn main() [io]
+//     let e = dirsenv.of(DirsXdg, "/home/ada")
+//     let p = dirsproject.project("org", "Novo Lang", "Novo")
+//     match dirsproject.file(e, p, DirsConfig, "config.toml")
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn file(e: dirsenv.DirsEnv, p: DirsProject, k: dirskind.DirsKind, relative: Str) -> ?Str []
+    todo("dirs-nv.dirsproject.file")
+
+// Every place this project's file of a kind would be looked for, in
+// order.
+//
+// The user's own project directory first, then the project's folder
+// inside each system-wide entry.  What a program hands to its "open
+// the first of these that exists" loop.
+//
+// ```novo
+// use dirsenv
+// use dirsproject
+//
+// fn main() [io]
+//     let e = dirsenv.of(DirsXdg, "/home/ada")
+//     let p = dirsproject.project("org", "Novo Lang", "Novo")
+//     println("${list.len(dirsproject.candidates(e, p, DirsConfig, "config.toml"))}")
+// ```
+pub fn candidates(e: dirsenv.DirsEnv, p: DirsProject, k: dirskind.DirsKind,
+                  relative: Str) -> [Str] []
+    todo("dirs-nv.dirsproject.candidates")
+
+// The extra folder a Windows path gets after the project's, or `""`.
+//
+// `"config"`, `"data"`, `"cache"` and so on, and `""` on every other
+// platform.  On Windows the roaming and local application-data folders
+// hold everything, so without this a program's configuration and its
+// cache would be the same directory.
+//
+// ```novo
+// use dirsproject
+//
+// fn main() [io]
+//     println(dirsproject.windows_suffix(DirsCache, DirsWindows))
+//     println(dirsproject.windows_suffix(DirsCache, DirsXdg))
+// ```
+pub fn windows_suffix(k: dirskind.DirsKind, platform: dirskind.DirsPlatform) -> Str []
+    todo("dirs-nv.dirsproject.windows_suffix")
+
+// The base directory this project's directory of a kind sits inside.
+//
+// `dirsbase.base` for the same kind, exposed here so a tool explaining
+// a path can show the two halves — the shared directory and the folder
+// this project added to it.
+//
+// ```novo
+// use dirsenv
+// use dirsproject
+//
+// fn main() [io]
+//     let e = dirsenv.of(DirsXdg, "/home/ada")
+//     match dirsproject.base_of(e, DirsConfig)
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn base_of(e: dirsenv.DirsEnv, k: dirskind.DirsKind) -> ?Str []
+    todo("dirs-nv.dirsproject.base_of")

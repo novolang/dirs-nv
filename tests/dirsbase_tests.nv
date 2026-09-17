@@ -1,0 +1,201 @@
+// dirsbase_tests.nv — resolution, over a snapshot a test builds
+// itself.
+//
+// RED ON PURPOSE: every assertion reaches `not implemented:
+// dirs-nv.dirsbase.<fn>` or `dirs-nv.dirsenv.<fn>`.  What is asserted
+// is that a variable wins over a fallback, that an empty variable is
+// treated as unset, that no home directory means no answer, and that
+// three platforms' answers come out of one snapshot.
+//
+// NOT ONE OF THESE CASES READS THE ENVIRONMENT.  That is the shape the
+// package is built in: `dirsenv.capture` is the only function with an
+// effect, and everything after it is a pure function of its result.
+
+use std.test
+use dirsbase
+use dirsenv
+use dirskind
+
+@test
+fn test_a_fallback_answers_when_the_variable_is_unset() [io]
+    let e = dirsenv.of(DirsXdg, "/home/ada")
+
+    test.case("the four per-user directories, from the home directory")
+    match dirsbase.config(e)
+        Some(path) => test.assert(path == "/home/ada/.config")
+        None       => test.fail("a home directory was given")
+    match dirsbase.data(e)
+        Some(path) => test.assert(path == "/home/ada/.local/share")
+        None       => test.fail("a home directory was given")
+    match dirsbase.cache(e)
+        Some(path) => test.assert(path == "/home/ada/.cache")
+        None       => test.fail("a home directory was given")
+    match dirsbase.state(e)
+        Some(path) => test.assert(path == "/home/ada/.local/state")
+        None       => test.fail("a home directory was given")
+
+    test.case("the home directory itself")
+    match dirsbase.home(e)
+        Some(path) => test.assert(path == "/home/ada")
+        None       => test.fail("a home directory was given")
+
+    test.case("and the per-user bin directory XDG 0.8 added")
+    match dirsbase.executable(e)
+        Some(path) => test.assert(path == "/home/ada/.local/bin")
+        None       => test.fail("XDG has a per-user bin directory")
+
+    test.case("none of which came from the environment")
+    test.assert(not dirsbase.is_from_environment(e, DirsConfig))
+
+@test
+fn test_a_variable_wins_and_an_empty_one_counts_as_unset() [io]
+    // The specification says a variable set to an empty value must be
+    // treated as though it were unset, which is why the snapshot does
+    // not distinguish the two.
+    let base = dirsenv.of(DirsXdg, "/home/ada")
+
+    test.case("a set variable is the answer")
+    let set = dirsenv.with_var(base, "XDG_CONFIG_HOME", "/etc/skel/config")
+    match dirsbase.config(set)
+        Some(path) => test.assert(path == "/etc/skel/config")
+        None       => test.fail("the variable is set")
+    test.assert(dirsbase.is_from_environment(set, DirsConfig))
+
+    test.case("and an empty one falls back")
+    let empty = dirsenv.with_var(base, "XDG_CONFIG_HOME", "")
+    match dirsbase.config(empty)
+        Some(path) => test.assert(path == "/home/ada/.config")
+        None       => test.fail("the fallback applies")
+    test.assert(not dirsbase.is_from_environment(empty, DirsConfig))
+
+    test.case("setting one leaves the others alone")
+    match dirsbase.cache(set)
+        Some(path) => test.assert(path == "/home/ada/.cache")
+        None       => test.fail("the fallback applies")
+
+    test.case("and the snapshot can be read back")
+    test.assert(dirsenv.var_of(set, "XDG_CONFIG_HOME") == "/etc/skel/config")
+    test.assert(dirsenv.var_of(set, "HOME") == "/home/ada")
+
+@test
+fn test_no_home_directory_means_no_answer_rather_than_a_wrong_one() [io]
+    // A system daemon, a container with an empty environment, a CI
+    // runner.  A path beginning with a slash and nothing before it
+    // would be worse than nothing.
+    let e = dirsenv.of(DirsXdg, "")
+
+    test.case("every fallback needs a home directory")
+    match dirsbase.config(e)
+        Some(_) => test.fail("there is no home directory to fall back to")
+        None    => test.assert(true)
+    match dirsbase.home(e)
+        Some(_) => test.fail("there is no home directory")
+        None    => test.assert(true)
+
+    test.case("and a variable that is set still answers")
+    let told = dirsenv.with_var(e, "XDG_CONFIG_HOME", "/srv/config")
+    match dirsbase.config(told)
+        Some(path) => test.assert(path == "/srv/config")
+        None       => test.fail("the variable is set")
+
+@test
+fn test_the_runtime_directory_is_none_until_the_session_provides_one() [io]
+    let e = dirsenv.of(DirsXdg, "/home/ada")
+
+    test.case("unset means None, and never an invented path")
+    match dirsbase.runtime(e)
+        Some(_) => test.fail("there is no fallback for a runtime directory")
+        None    => test.assert(true)
+
+    test.case("and set means what it says")
+    let session = dirsenv.with_var(e, "XDG_RUNTIME_DIR", "/run/user/1000")
+    match dirsbase.runtime(session)
+        Some(path) => test.assert(path == "/run/user/1000")
+        None       => test.fail("the variable is set")
+
+@test
+fn test_one_snapshot_answers_for_three_platforms() [io]
+    // What a cross-platform installer and a documentation generator
+    // both need, and what makes the naming rules testable without
+    // three machines.
+    let xdg = dirsenv.of(DirsXdg, "/home/ada")
+
+    test.case("macOS puts configuration in Library/Application Support")
+    let mac = dirsenv.as_platform(dirsenv.of(DirsMacos, "/Users/ada"), DirsMacos)
+    match dirsbase.config(mac)
+        Some(path) => test.assert(path == "/Users/ada/Library/Application Support")
+        None       => test.fail("a home directory was given")
+    match dirsbase.cache(mac)
+        Some(path) => test.assert(path == "/Users/ada/Library/Caches")
+        None       => test.fail("a home directory was given")
+
+    test.case("and has no per-user bin directory at all")
+    match dirsbase.executable(mac)
+        Some(_) => test.fail("macOS has no counterpart")
+        None    => test.assert(true)
+
+    test.case("Windows reads its own two variables")
+    let win = dirsenv.with_var(
+                  dirsenv.with_var(dirsenv.of(DirsWindows, "C:\\Users\\Ada"),
+                                   "APPDATA", "C:\\Users\\Ada\\AppData\\Roaming"),
+                  "LOCALAPPDATA", "C:\\Users\\Ada\\AppData\\Local")
+    match dirsbase.config(win)
+        Some(path) => test.assert(path == "C:\\Users\\Ada\\AppData\\Roaming")
+        None       => test.fail("APPDATA is set")
+    match dirsbase.config_local(win)
+        Some(path) => test.assert(path == "C:\\Users\\Ada\\AppData\\Local")
+        None       => test.fail("LOCALAPPDATA is set")
+
+    test.case("where on XDG the two are one directory")
+    match dirsbase.config_local(xdg)
+        Some(path) => test.assert(path == "/home/ada/.config")
+        None       => test.fail("a home directory was given")
+    match dirsbase.data_local(xdg)
+        Some(path) => test.assert(path == "/home/ada/.local/share")
+        None       => test.fail("a home directory was given")
+
+    test.case("and the platform can be changed on a snapshot that is already built")
+    test.assert(dirskind.platform_name(dirsenv.as_platform(xdg, DirsMacos).platform) == "macos")
+
+@test
+fn test_a_path_under_a_base_directory_uses_the_platforms_separator() [io]
+    test.case("on XDG, the separator it was written with")
+    match dirsbase.join(dirsenv.of(DirsXdg, "/home/ada"), DirsConfig, "novo/config.toml")
+        Some(path) => test.assert(path == "/home/ada/.config/novo/config.toml")
+        None       => test.fail("a home directory was given")
+
+    test.case("and on Windows, rewritten")
+    let win = dirsenv.with_var(dirsenv.of(DirsWindows, "C:\\Users\\Ada"),
+                               "APPDATA", "C:\\Users\\Ada\\AppData\\Roaming")
+    match dirsbase.join(win, DirsConfig, "novo/config.toml")
+        Some(path) => test.assert(path == "C:\\Users\\Ada\\AppData\\Roaming\\novo\\config.toml")
+        None       => test.fail("APPDATA is set")
+
+    test.case("a base that is None makes the whole path None")
+    match dirsbase.join(dirsenv.of(DirsXdg, ""), DirsConfig, "novo/config.toml")
+        Some(_) => test.fail("there is no home directory")
+        None    => test.assert(true)
+
+@test
+fn test_the_generic_call_answers_the_same_as_the_named_ones() [io]
+    let e = dirsenv.of(DirsXdg, "/home/ada")
+
+    test.case("base with a kind is what each named function is shorthand for")
+    match dirsbase.base(e, DirsCache)
+        Some(path) => test.assert(path == "/home/ada/.cache")
+        None       => test.fail("a home directory was given")
+
+    test.case("which is how a tool prints a table of all of them")
+    test.assert(list.len(dirskind.kinds()) == 9)
+
+@test
+fn test_the_snapshot_names_exactly_what_it_reads() [io]
+    // A tool explaining where it put a file prints this list, and a
+    // reader checking the package against the specification reads it.
+    test.case("thirteen names for twelve fields: the home directory has two spellings")
+    let names = dirsenv.variables()
+    test.assert(list.len(names) == 13)
+
+    test.case("a name the package does not read is ignored rather than stored")
+    let e = dirsenv.with_var(dirsenv.of(DirsXdg, "/home/ada"), "PATH", "/usr/bin")
+    test.assert(dirsenv.var_of(e, "PATH") == "")

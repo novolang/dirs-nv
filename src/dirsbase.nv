@@ -1,0 +1,251 @@
+// dirsbase.nv — where each directory is, for this user.
+//
+// EVERY ANSWER IS OPTIONAL, AND TWO OF THEM MEAN IT
+//
+// `None` means the environment did not say and there is no rule that
+// could say for it.  It happens in two ways, and a caller should treat
+// them differently:
+//
+//   no home directory   Every fallback is relative to the home
+//                       directory, so a process started without one —
+//                       a system daemon, a container with an empty
+//                       environment, a CI runner — gets `None` for
+//                       almost everything.  That is a deployment
+//                       fault, and a program should say so at start-up.
+//   no runtime directory
+//                       `$XDG_RUNTIME_DIR` has no fallback by design.
+//                       The specification is explicit that an
+//                       application must not create one itself, because
+//                       the directory's guarantees — the right owner,
+//                       the right permissions, removed at logout — are
+//                       the login session's to provide.  A program
+//                       that needs one falls back to a temporary
+//                       directory and says in its log that it did.
+//
+// NOTHING HERE TOUCHES THE FILESYSTEM
+//
+// Every function answers where a path WOULD be.  None of them asks
+// whether it exists, none creates it, and none reads it.  That is
+// deliberate: a directories library that creates directories is a
+// library a program cannot use to ask a question, and the answer to
+// "where would my configuration go" is useful long before anybody
+// wants the directory to exist.  A caller that wants it creates it
+// with the `[fs]` effect it already has.
+
+use dirsenv
+use dirskind
+
+// Where a kind of directory is, under this snapshot's rules.
+//
+// The one function the rest of this module is named shorthand for.
+// The variable is used when it is set; otherwise the platform's
+// fallback is appended to the home directory; otherwise `None`.
+//
+// ```novo
+// use dirsbase
+// use dirsenv
+//
+// fn main() [io]
+//     match dirsbase.base(dirsenv.of(DirsXdg, "/home/ada"), DirsCache)
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn base(e: dirsenv.DirsEnv, k: dirskind.DirsKind) -> ?Str []
+    todo("dirs-nv.dirsbase.base")
+
+// The user's home directory, or `None`.
+//
+// `None` is a real answer: a process can be started without one.
+//
+// ```novo
+// use dirsbase
+// use dirsenv
+//
+// fn main() [io]
+//     match dirsbase.home(dirsenv.of(DirsXdg, "/home/ada"))
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn home(e: dirsenv.DirsEnv) -> ?Str []
+    todo("dirs-nv.dirsbase.home")
+
+// Configuration a user edits.
+//
+// `$XDG_CONFIG_HOME`, defaulting to `$HOME/.config`;
+// `~/Library/Application Support` on macOS; `%APPDATA%` on Windows.
+//
+// ```novo
+// use dirsbase
+// use dirsenv
+//
+// fn main() [io]
+//     match dirsbase.config(dirsenv.of(DirsXdg, "/home/ada"))
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn config(e: dirsenv.DirsEnv) -> ?Str []
+    todo("dirs-nv.dirsbase.config")
+
+// Configuration that should not follow a user between machines.
+//
+// The same directory as `config` except on Windows, where it is
+// `%LOCALAPPDATA%`.
+//
+// ```novo
+// use dirsbase
+// use dirsenv
+//
+// fn main() [io]
+//     match dirsbase.config_local(dirsenv.of(DirsWindows, "C:\\Users\\Ada"))
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn config_local(e: dirsenv.DirsEnv) -> ?Str []
+    todo("dirs-nv.dirsbase.config_local")
+
+// Data a program wrote and must not lose.
+//
+// `$XDG_DATA_HOME`, defaulting to `$HOME/.local/share`.
+//
+// ```novo
+// use dirsbase
+// use dirsenv
+//
+// fn main() [io]
+//     match dirsbase.data(dirsenv.of(DirsXdg, "/home/ada"))
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn data(e: dirsenv.DirsEnv) -> ?Str []
+    todo("dirs-nv.dirsbase.data")
+
+// Data that should not follow a user between machines.
+//
+// ```novo
+// use dirsbase
+// use dirsenv
+//
+// fn main() [io]
+//     match dirsbase.data_local(dirsenv.of(DirsWindows, "C:\\Users\\Ada"))
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn data_local(e: dirsenv.DirsEnv) -> ?Str []
+    todo("dirs-nv.dirsbase.data_local")
+
+// Data a program can regenerate.
+//
+// `$XDG_CACHE_HOME`, defaulting to `$HOME/.cache`;
+// `~/Library/Caches` on macOS.  Anything here may be deleted between
+// runs, by the user or by the system, and a program that cannot
+// survive that is using the wrong directory.
+//
+// ```novo
+// use dirsbase
+// use dirsenv
+//
+// fn main() [io]
+//     match dirsbase.cache(dirsenv.of(DirsMacos, "/Users/ada"))
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn cache(e: dirsenv.DirsEnv) -> ?Str []
+    todo("dirs-nv.dirsbase.cache")
+
+// State that is neither configuration nor precious data: logs,
+// history, a window layout, a recently-used list.
+//
+// `$XDG_STATE_HOME`, defaulting to `$HOME/.local/state`.  The
+// directory most programs get wrong, by writing a log into the
+// configuration directory where a user's backup will keep it forever.
+//
+// ```novo
+// use dirsbase
+// use dirsenv
+//
+// fn main() [io]
+//     match dirsbase.state(dirsenv.of(DirsXdg, "/home/ada"))
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn state(e: dirsenv.DirsEnv) -> ?Str []
+    todo("dirs-nv.dirsbase.state")
+
+// A directory for sockets, named pipes and lock files, cleared when
+// the user logs out.
+//
+// `$XDG_RUNTIME_DIR`, and `None` whenever it is unset — on every
+// platform.  See the note at the top of this module: the fallback is
+// deliberately absent, and a program that needs one falls back to a
+// temporary directory itself and says so.
+//
+// ```novo
+// use dirsbase
+// use dirsenv
+//
+// fn main() [io]
+//     match dirsbase.runtime(dirsenv.of(DirsXdg, "/home/ada"))
+//         Some(path) => println(path)
+//         None       => println("no runtime directory; use a temporary one")
+// ```
+pub fn runtime(e: dirsenv.DirsEnv) -> ?Str []
+    todo("dirs-nv.dirsbase.runtime")
+
+// Where a user's own executables go.
+//
+// `$XDG_BIN_HOME`, defaulting to `$HOME/.local/bin`.  `None` on macOS
+// and Windows, which have no counterpart — an installer for those
+// platforms puts a program somewhere else entirely, and answering with
+// an invented path would send it there.
+//
+// ```novo
+// use dirsbase
+// use dirsenv
+//
+// fn main() [io]
+//     match dirsbase.executable(dirsenv.of(DirsXdg, "/home/ada"))
+//         Some(path) => println(path)
+//         None       => println("this platform has no per-user bin directory")
+// ```
+pub fn executable(e: dirsenv.DirsEnv) -> ?Str []
+    todo("dirs-nv.dirsbase.executable")
+
+// Whether a kind's answer came from the environment rather than from a
+// fallback.
+//
+// A tool explaining where it put a file says "because XDG_CACHE_HOME
+// is set" or "because it defaults to ~/.cache", and this is the
+// difference.
+//
+// ```novo
+// use dirsbase
+// use dirsenv
+//
+// fn main() [io]
+//     let e = dirsenv.of(DirsXdg, "/home/ada")
+//     println("${dirsbase.is_from_environment(e, DirsCache)}")
+// ```
+pub fn is_from_environment(e: dirsenv.DirsEnv, k: dirskind.DirsKind) -> Bool []
+    todo("dirs-nv.dirsbase.is_from_environment")
+
+// A path under one of the base directories.
+//
+// `join(e, DirsConfig, "novo/config.toml")` is the configuration
+// directory with that appended, using the platform's separator.
+// `None` exactly when the base directory is `None`.
+//
+// The relative part is taken as it is given, with `/` as its
+// separator, and is rewritten to the platform's.  Nothing is
+// normalised: a `..` in it stays a `..`.
+//
+// ```novo
+// use dirsbase
+// use dirsenv
+//
+// fn main() [io]
+//     match dirsbase.join(dirsenv.of(DirsXdg, "/home/ada"), DirsConfig, "novo/config.toml")
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn join(e: dirsenv.DirsEnv, k: dirskind.DirsKind, relative: Str) -> ?Str []
+    todo("dirs-nv.dirsbase.join")

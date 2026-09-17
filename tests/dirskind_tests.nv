@@ -1,0 +1,108 @@
+// dirskind_tests.nv — the table, checked against the specification it
+// comes from.
+//
+// RED ON PURPOSE: every assertion reaches `not implemented:
+// dirs-nv.dirskind.<fn>`.  What is asserted is that each kind names
+// the variable the XDG Base Directory Specification names, that the
+// fallbacks are the ones it gives, and that the two kinds with no
+// fallback say so.
+
+use std.test
+use dirskind
+
+@test
+fn test_each_xdg_kind_names_the_variable_the_specification_names() [io]
+    test.case("the four per-user directories")
+    test.assert(dirskind.variable_of(DirsConfig, DirsXdg) == "XDG_CONFIG_HOME")
+    test.assert(dirskind.variable_of(DirsData, DirsXdg) == "XDG_DATA_HOME")
+    test.assert(dirskind.variable_of(DirsCache, DirsXdg) == "XDG_CACHE_HOME")
+    test.assert(dirskind.variable_of(DirsState, DirsXdg) == "XDG_STATE_HOME")
+
+    test.case("the runtime directory and the one added in version 0.8")
+    test.assert(dirskind.variable_of(DirsRuntime, DirsXdg) == "XDG_RUNTIME_DIR")
+    test.assert(dirskind.variable_of(DirsExecutable, DirsXdg) == "XDG_BIN_HOME")
+
+    test.case("and the home directory, which is not an XDG variable at all")
+    test.assert(dirskind.variable_of(DirsHome, DirsXdg) == "HOME")
+
+@test
+fn test_each_xdg_fallback_is_the_one_the_specification_gives() [io]
+    test.case("relative to the home directory, without a leading slash")
+    test.assert(dirskind.fallback_of(DirsConfig, DirsXdg) == ".config")
+    test.assert(dirskind.fallback_of(DirsData, DirsXdg) == ".local/share")
+    test.assert(dirskind.fallback_of(DirsCache, DirsXdg) == ".cache")
+    test.assert(dirskind.fallback_of(DirsState, DirsXdg) == ".local/state")
+    test.assert(dirskind.fallback_of(DirsExecutable, DirsXdg) == ".local/bin")
+
+    test.case("the home directory is itself")
+    test.assert(dirskind.fallback_of(DirsHome, DirsXdg) == "")
+
+@test
+fn test_the_runtime_directory_has_no_fallback_anywhere() [io]
+    // The specification is explicit that an application must not
+    // create one: the directory's owner, its permissions and its
+    // removal at logout are the login session's to provide.
+    test.case("no platform can answer it from a home directory")
+    test.assert(not dirskind.has_fallback(DirsRuntime, DirsXdg))
+    test.assert(not dirskind.has_fallback(DirsRuntime, DirsMacos))
+    test.assert(not dirskind.has_fallback(DirsRuntime, DirsWindows))
+    test.assert(dirskind.fallback_of(DirsRuntime, DirsXdg) == "")
+
+    test.case("and a per-user bin directory exists only under XDG")
+    test.assert(dirskind.has_fallback(DirsExecutable, DirsXdg))
+    test.assert(not dirskind.has_fallback(DirsExecutable, DirsMacos))
+    test.assert(not dirskind.has_fallback(DirsExecutable, DirsWindows))
+
+    test.case("every other kind can be answered from a home directory")
+    test.assert(dirskind.has_fallback(DirsConfig, DirsXdg))
+    test.assert(dirskind.has_fallback(DirsConfig, DirsMacos))
+    test.assert(dirskind.has_fallback(DirsCache, DirsWindows))
+
+@test
+fn test_macos_derives_everything_from_the_home_directory() [io]
+    // It consults no variable of its own, which is why every macOS
+    // entry in the table is a fallback and none is a variable.
+    test.case("no variable")
+    test.assert(dirskind.variable_of(DirsConfig, DirsMacos) == "")
+    test.assert(dirskind.variable_of(DirsCache, DirsMacos) == "")
+
+    test.case("and the Library layout as the fallbacks")
+    test.assert(dirskind.fallback_of(DirsConfig, DirsMacos) == "Library/Application Support")
+    test.assert(dirskind.fallback_of(DirsData, DirsMacos) == "Library/Application Support")
+    test.assert(dirskind.fallback_of(DirsCache, DirsMacos) == "Library/Caches")
+
+@test
+fn test_windows_is_the_only_platform_where_local_differs_from_roaming() [io]
+    // The distinction exists so that a cache-sized file does not
+    // follow a user across a domain.  A program can use the local
+    // kinds everywhere and be correct everywhere.
+    test.case("on Windows the two read different variables")
+    test.assert(dirskind.variable_of(DirsConfig, DirsWindows) == "APPDATA")
+    test.assert(dirskind.variable_of(DirsConfigLocal, DirsWindows) == "LOCALAPPDATA")
+    test.assert(not dirskind.same_as(DirsConfigLocal, DirsConfig, DirsWindows))
+    test.assert(not dirskind.same_as(DirsDataLocal, DirsData, DirsWindows))
+
+    test.case("and everywhere else they are the same directory")
+    test.assert(dirskind.same_as(DirsConfigLocal, DirsConfig, DirsXdg))
+    test.assert(dirskind.same_as(DirsConfigLocal, DirsConfig, DirsMacos))
+    test.assert(dirskind.same_as(DirsDataLocal, DirsData, DirsXdg))
+
+@test
+fn test_the_names_and_the_list_are_complete() [io]
+    test.case("nine kinds, and every one of them named")
+    test.assert(list.len(dirskind.kinds()) == 9)
+    test.assert(dirskind.kind_name(DirsConfig) == "config")
+    test.assert(dirskind.kind_name(DirsConfigLocal) == "config-local")
+    test.assert(dirskind.kind_name(DirsDataLocal) == "data-local")
+    test.assert(dirskind.kind_name(DirsRuntime) == "runtime")
+    test.assert(dirskind.kind_name(DirsExecutable) == "executable")
+
+    test.case("three platforms, named")
+    test.assert(dirskind.platform_name(DirsXdg) == "xdg")
+    test.assert(dirskind.platform_name(DirsMacos) == "macos")
+    test.assert(dirskind.platform_name(DirsWindows) == "windows")
+
+    test.case("and the separator each spells a path with")
+    test.assert(dirskind.separator_of(DirsXdg) == "/")
+    test.assert(dirskind.separator_of(DirsMacos) == "/")
+    test.assert(dirskind.separator_of(DirsWindows) == "\\")

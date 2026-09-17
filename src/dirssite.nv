@@ -1,0 +1,133 @@
+// dirssite.nv — the directories the system provides, and the order a
+// file is looked for in.
+//
+// THE LIST IS THE POINT, NOT THE DIRECTORY
+//
+// `$XDG_CONFIG_DIRS` and `$XDG_DATA_DIRS` are not a directory each.
+// They are ordered, colon-separated lists, and the specification's
+// rule is that a file is looked for in the user's own directory first
+// and then in each list entry in turn, the first match winning.  A
+// program that read only the first entry would ignore a package's
+// defaults; a program that read them in the wrong order would let a
+// system default override a user's own file.
+//
+// `search_path` is that rule as one call, and it is the function to
+// use.  The two list functions below are for a program that has to
+// show a user where it looked.
+//
+// WHAT A WINDOWS AND A MACOS SYSTEM DIRECTORY IS
+//
+// macOS has `/Library/Application Support` and `/Library/Caches`, the
+// system-wide counterparts of the per-user ones.  Windows has
+// `%ProgramData%`.  Neither platform has a LIST: there is exactly one
+// system directory of each kind, so `site_config` and `site_data`
+// answer one entry there and several on an XDG system.
+
+use dirsenv
+use dirskind
+
+// The system-wide configuration directories, in the order they are
+// searched.
+//
+// `$XDG_CONFIG_DIRS` split on `:`, defaulting to the single entry
+// `/etc/xdg`.  One entry on macOS and Windows.  An empty entry in the
+// variable is dropped, because a path of nothing is not a directory.
+//
+// ```novo
+// use dirsenv
+// use dirssite
+//
+// fn main() [io]
+//     println("${list.len(dirssite.site_config(dirsenv.of(DirsXdg, "/home/ada")))}")
+// ```
+pub fn site_config(e: dirsenv.DirsEnv) -> [Str] []
+    todo("dirs-nv.dirssite.site_config")
+
+// The system-wide data directories, in the order they are searched.
+//
+// `$XDG_DATA_DIRS` split on `:`, defaulting to `/usr/local/share` and
+// then `/usr/share` — in that order, so a locally installed package's
+// files are found before the distribution's.
+//
+// ```novo
+// use dirsenv
+// use dirssite
+//
+// fn main() [io]
+//     println("${list.len(dirssite.site_data(dirsenv.of(DirsXdg, "/home/ada")))}")
+// ```
+pub fn site_data(e: dirsenv.DirsEnv) -> [Str] []
+    todo("dirs-nv.dirssite.site_data")
+
+// Every directory a file of this kind is looked for in, in order.
+//
+// The user's own directory first, then each system-wide entry.  That
+// order is the specification's, and it is what lets a user's file
+// override a package's default.
+//
+// A kind with no system-wide counterpart — cache, state, runtime,
+// executable — answers just the user's directory, so a caller can use
+// this function for every kind without asking which ones have lists.
+//
+// ```novo
+// use dirsenv
+// use dirssite
+//
+// fn main() [io]
+//     let e = dirsenv.of(DirsXdg, "/home/ada")
+//     println("${list.len(dirssite.search_path(e, DirsConfig))}")
+// ```
+pub fn search_path(e: dirsenv.DirsEnv, k: dirskind.DirsKind) -> [Str] []
+    todo("dirs-nv.dirssite.search_path")
+
+// Every place a named file would be looked for, in order.
+//
+// `search_path` with the relative path appended to each entry.  The
+// list a program hands to its own "open the first of these that
+// exists" loop, and the list it prints when none of them did.
+//
+// ```novo
+// use dirsenv
+// use dirssite
+//
+// fn main() [io]
+//     let e = dirsenv.of(DirsXdg, "/home/ada")
+//     println("${list.len(dirssite.candidates(e, DirsConfig, "novo/config.toml"))}")
+// ```
+pub fn candidates(e: dirsenv.DirsEnv, k: dirskind.DirsKind, relative: Str) -> [Str] []
+    todo("dirs-nv.dirssite.candidates")
+
+// Whether a kind has system-wide directories at all.
+//
+// True for configuration and data, false for the other six.  The
+// specification gives a list to those two and to no others, and a
+// program that looked for a system-wide cache would be looking for
+// something that is not defined to exist.
+//
+// ```novo
+// use dirskind
+// use dirssite
+//
+// fn main() [io]
+//     println("${dirssite.has_site_dirs(DirsConfig)}")
+//     println("${dirssite.has_site_dirs(DirsCache)}")
+// ```
+pub fn has_site_dirs(k: dirskind.DirsKind) -> Bool []
+    todo("dirs-nv.dirssite.has_site_dirs")
+
+// The character a platform separates its directory lists with: `":"`
+// on XDG and macOS, `";"` on Windows.
+//
+// Windows separates a list with a semicolon because a colon is part of
+// a drive letter, and a program that split on a colon there would
+// split `C:\ProgramData` into two entries.
+//
+// ```novo
+// use dirskind
+// use dirssite
+//
+// fn main() [io]
+//     println(dirssite.list_separator_of(DirsWindows))
+// ```
+pub fn list_separator_of(p: dirskind.DirsPlatform) -> Str []
+    todo("dirs-nv.dirssite.list_separator_of")

@@ -1,0 +1,213 @@
+// dirsenv.nv — the environment, read once, into a value.
+//
+// THREE FUNCTIONS PERFORM SOMETHING AND THE REST OF THE PACKAGE DOES
+// NOT
+//
+// `capture`, `capture_as` and `host_platform` are the only functions
+// in this package with an effect row.  Everything else takes the
+// `DirsEnv` they answer and is a pure function of it.
+//
+// That shape is worth more than it costs.  A program that resolves
+// twelve directories reads the environment once instead of twelve
+// times, so its answers cannot disagree with each other because
+// something changed a variable underneath it.  A test does not need an
+// environment at all: it builds a `DirsEnv` with `of` and asserts what
+// the rules do with it, including the rules of a platform the test is
+// not running on.  And a tool that has to explain where it decided to
+// put a file can print the snapshot it decided from.
+//
+// WHAT IS READ, AND NOTHING ELSE
+//
+// The variables below are the whole of this package's interest in the
+// environment.  It does not read `PATH`, it does not read `USER`, and
+// it does not read anything to decide the platform except what
+// `host_platform` names.
+
+use dirskind
+
+// The variables this package reads, captured at one moment.
+//
+// A variable that was unset is `""`.  The distinction between unset
+// and set-to-empty does not survive, and it does not need to: the XDG
+// specification says a variable set to an empty value must be treated
+// as though it were unset, which is the same rule.
+//
+// ```novo
+// use dirsenv
+// use dirskind
+//
+// fn main() [io]
+//     let e = dirsenv.of(DirsXdg, "/home/ada")
+//     println(e.home)
+// ```
+pub struct DirsEnv
+    // Which set of rules the answers are resolved by.
+    platform: dirskind.DirsPlatform
+    // `HOME` on XDG and macOS, `USERPROFILE` on Windows.  Empty when
+    // the platform would not say, which makes every derived answer
+    // `None` rather than a path beginning with a slash.
+    home: Str
+    // `XDG_CONFIG_HOME`.
+    config_home: Str
+    // `XDG_DATA_HOME`.
+    data_home: Str
+    // `XDG_STATE_HOME`.
+    state_home: Str
+    // `XDG_CACHE_HOME`.
+    cache_home: Str
+    // `XDG_RUNTIME_DIR`.  The one variable with no fallback.
+    runtime_dir: Str
+    // `XDG_BIN_HOME`.
+    bin_home: Str
+    // `XDG_CONFIG_DIRS`, the colon-separated system-wide
+    // configuration list.
+    config_dirs: Str
+    // `XDG_DATA_DIRS`, the colon-separated system-wide data list.
+    data_dirs: Str
+    // `APPDATA`, the Windows roaming application-data folder.
+    app_data: Str
+    // `LOCALAPPDATA`, the Windows machine-local application-data
+    // folder.
+    local_app_data: Str
+    // `ProgramData`, the Windows system-wide application-data folder.
+    program_data: Str
+
+// The environment as it is now, under this machine's own rules.
+//
+// The call almost every program makes, once, at start-up.
+//
+// ```novo
+// use dirsbase
+// use dirsenv
+//
+// fn main() [io]
+//     let e = dirsenv.capture()
+//     match dirsbase.config(e)
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn capture() -> DirsEnv [io]
+    todo("dirs-nv.dirsenv.capture")
+
+// The environment as it is now, resolved by a named platform's rules.
+//
+// For a program that generates paths for a machine it is not running
+// on — an installer, a container image builder, a documentation
+// generator that prints where each platform would put a file.
+//
+// ```novo
+// use dirsenv
+// use dirskind
+//
+// fn main() [io]
+//     println(dirskind.platform_name(dirsenv.capture_as(DirsWindows).platform))
+// ```
+pub fn capture_as(p: dirskind.DirsPlatform) -> DirsEnv [io]
+    todo("dirs-nv.dirsenv.capture_as")
+
+// Which rules this machine uses.
+//
+// `DirsXdg` for Linux and the BSDs, `DirsMacos` for macOS,
+// `DirsWindows` for Windows, and `DirsXdg` for anything else — because
+// a system nobody has named is far more likely to follow the XDG
+// layout than either of the other two.
+//
+// ```novo
+// use dirsenv
+// use dirskind
+//
+// fn main() [io]
+//     println(dirskind.platform_name(dirsenv.host_platform()))
+// ```
+pub fn host_platform() -> dirskind.DirsPlatform [io]
+    todo("dirs-nv.dirsenv.host_platform")
+
+// A snapshot with a platform and a home directory and nothing else
+// set.
+//
+// Every variable is empty, so every kind falls back.  This is what a
+// test builds, and it is what a program that has decided to ignore the
+// environment entirely uses.
+//
+// ```novo
+// use dirsbase
+// use dirsenv
+//
+// fn main() [io]
+//     match dirsbase.config(dirsenv.of(DirsXdg, "/home/ada"))
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn of(p: dirskind.DirsPlatform, home: Str) -> DirsEnv []
+    todo("dirs-nv.dirsenv.of")
+
+// The same snapshot with one variable set.
+//
+// The variable is named the way the environment names it —
+// `"XDG_CONFIG_HOME"`, `"LOCALAPPDATA"` — so a test reads like the
+// shell line it stands for.  A name this package does not read is
+// ignored, because the snapshot holds only the variables above.
+//
+// ```novo
+// use dirsbase
+// use dirsenv
+//
+// fn main() [io]
+//     let e = dirsenv.with_var(dirsenv.of(DirsXdg, "/home/ada"),
+//                              "XDG_CONFIG_HOME", "/etc/skel/config")
+//     match dirsbase.config(e)
+//         Some(path) => println(path)
+//         None       => println("no home directory")
+// ```
+pub fn with_var(e: DirsEnv, name: Str, value: Str) -> DirsEnv []
+    todo("dirs-nv.dirsenv.with_var")
+
+// The value a snapshot holds for a variable, or `""`.
+//
+// The other half of `with_var`, and what a tool explaining its choice
+// of directory prints.
+//
+// ```novo
+// use dirsenv
+//
+// fn main() [io]
+//     println(dirsenv.var_of(dirsenv.of(DirsXdg, "/home/ada"), "HOME"))
+// ```
+pub fn var_of(e: DirsEnv, name: Str) -> Str []
+    todo("dirs-nv.dirsenv.var_of")
+
+// Every variable name this package reads, in the order they are
+// documented.
+//
+// Thirteen names for twelve fields: the home directory is `HOME` on
+// XDG and macOS and `USERPROFILE` on Windows, and both names read and
+// write the same field, because a snapshot holds one home directory
+// however the platform spells it.
+//
+// A tool that prints the environment it decided from, and a test that
+// checks `with_var` covers the whole snapshot, both want the list.
+//
+// ```novo
+// use dirsenv
+//
+// fn main() [io]
+//     println("${list.len(dirsenv.variables())}")
+// ```
+pub fn variables() -> [Str] []
+    todo("dirs-nv.dirsenv.variables")
+
+// The same snapshot resolved by a different platform's rules.
+//
+// The variables are kept and the rules change, which is what a test
+// comparing two platforms' answers from one environment wants.
+//
+// ```novo
+// use dirsenv
+// use dirskind
+//
+// fn main() [io]
+//     let e = dirsenv.as_platform(dirsenv.of(DirsXdg, "/home/ada"), DirsMacos)
+//     println(dirskind.platform_name(e.platform))
+// ```
+pub fn as_platform(e: DirsEnv, p: dirskind.DirsPlatform) -> DirsEnv []
+    todo("dirs-nv.dirsenv.as_platform")
