@@ -1,11 +1,9 @@
 // dirsproject_tests.nv — one program's own folder, spelled three ways.
 //
-// RED ON PURPOSE: every assertion reaches `not implemented:
-// dirs-nv.dirsproject.<fn>` or a function it calls.  What is asserted
-// is that each platform's folder name is the one its own conventions
-// ask for, that Windows gets the third level that keeps configuration
-// out of the cache, and that a project with only a name still produces
-// a clean folder.
+// What is asserted is that each platform's folder name is the one its
+// own conventions ask for, that Windows gets the third level that
+// keeps configuration out of the cache, and that a project with only a
+// name still produces a clean folder.
 
 use std.test
 use dirsenv

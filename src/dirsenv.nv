@@ -23,6 +23,7 @@
 // it does not read anything to decide the platform except what
 // `host_platform` names.
 
+use std.env
 use dirskind
 
 // The variables this package reads, captured at one moment.
@@ -72,6 +73,14 @@ pub struct DirsEnv
     // `ProgramData`, the Windows system-wide application-data folder.
     program_data: Str
 
+// A variable's value, or `""` when it is unset.  The XDG specification
+// says a variable set to an empty value must be treated as though it
+// were undefined, so the snapshot does not distinguish the two.
+fn read(name: Str) -> Str [io]
+    match env.get(name)
+        Some(value) => value
+        None        => ""
+
 // The environment as it is now, under this machine's own rules.
 //
 // The call almost every program makes, once, at start-up.
@@ -87,7 +96,7 @@ pub struct DirsEnv
 //         None       => println("no home directory")
 // ```
 pub fn capture() -> DirsEnv [io]
-    todo("dirs-nv.dirsenv.capture")
+    capture_as(host_platform())
 
 // The environment as it is now, resolved by a named platform's rules.
 //
@@ -103,7 +112,20 @@ pub fn capture() -> DirsEnv [io]
 //     println(dirskind.platform_name(dirsenv.capture_as(DirsWindows).platform))
 // ```
 pub fn capture_as(p: dirskind.DirsPlatform) -> DirsEnv [io]
-    todo("dirs-nv.dirsenv.capture_as")
+    DirsEnv {
+        platform: p,
+        home: read(dirskind.variable_of(DirsHome, p)),
+        config_home: read("XDG_CONFIG_HOME"),
+        data_home: read("XDG_DATA_HOME"),
+        state_home: read("XDG_STATE_HOME"),
+        cache_home: read("XDG_CACHE_HOME"),
+        runtime_dir: read("XDG_RUNTIME_DIR"),
+        bin_home: read("XDG_BIN_HOME"),
+        config_dirs: read("XDG_CONFIG_DIRS"),
+        data_dirs: read("XDG_DATA_DIRS"),
+        app_data: read("APPDATA"),
+        local_app_data: read("LOCALAPPDATA"),
+        program_data: read("ProgramData") }
 
 // Which rules this machine uses.
 //
@@ -120,7 +142,13 @@ pub fn capture_as(p: dirskind.DirsPlatform) -> DirsEnv [io]
 //     println(dirskind.platform_name(dirsenv.host_platform()))
 // ```
 pub fn host_platform() -> dirskind.DirsPlatform [io]
-    todo("dirs-nv.dirsenv.host_platform")
+    match env.os()
+        // cov: skip — the arm a macOS host takes; the runtime is asked what
+        // machine it is on and cannot answer for one it is not running on
+        "macos"   => DirsMacos
+        // cov: skip — the same, for a Windows host
+        "windows" => DirsWindows
+        _         => DirsXdg
 
 // A snapshot with a platform and a home directory and nothing else
 // set.
@@ -139,7 +167,31 @@ pub fn host_platform() -> dirskind.DirsPlatform [io]
 //         None       => println("no home directory")
 // ```
 pub fn of(p: dirskind.DirsPlatform, home: Str) -> DirsEnv []
-    todo("dirs-nv.dirsenv.of")
+    DirsEnv {
+        platform: p,
+        home: home,
+        config_home: "",
+        data_home: "",
+        state_home: "",
+        cache_home: "",
+        runtime_dir: "",
+        bin_home: "",
+        config_dirs: "",
+        data_dirs: "",
+        app_data: "",
+        local_app_data: "",
+        program_data: "" }
+
+// The value one field holds after a variable is set: `value` when
+// `name` is that field's variable, and the field's own value
+// otherwise.  A name the snapshot does not read changes nothing.  The
+// home directory has two spellings, which is why there are two names
+// to compare rather than one.
+fn set_field(current: Str, name: Str, first: Str, second: Str, value: Str) -> Str []
+    if name == first or second != "" and name == second
+        value
+    else
+        current
 
 // The same snapshot with one variable set.
 //
@@ -160,7 +212,20 @@ pub fn of(p: dirskind.DirsPlatform, home: Str) -> DirsEnv []
 //         None       => println("no home directory")
 // ```
 pub fn with_var(e: DirsEnv, name: Str, value: Str) -> DirsEnv []
-    todo("dirs-nv.dirsenv.with_var")
+    DirsEnv {
+        platform: e.platform,
+        home: set_field(e.home, name, "HOME", "USERPROFILE", value),
+        config_home: set_field(e.config_home, name, "XDG_CONFIG_HOME", "", value),
+        data_home: set_field(e.data_home, name, "XDG_DATA_HOME", "", value),
+        state_home: set_field(e.state_home, name, "XDG_STATE_HOME", "", value),
+        cache_home: set_field(e.cache_home, name, "XDG_CACHE_HOME", "", value),
+        runtime_dir: set_field(e.runtime_dir, name, "XDG_RUNTIME_DIR", "", value),
+        bin_home: set_field(e.bin_home, name, "XDG_BIN_HOME", "", value),
+        config_dirs: set_field(e.config_dirs, name, "XDG_CONFIG_DIRS", "", value),
+        data_dirs: set_field(e.data_dirs, name, "XDG_DATA_DIRS", "", value),
+        app_data: set_field(e.app_data, name, "APPDATA", "", value),
+        local_app_data: set_field(e.local_app_data, name, "LOCALAPPDATA", "", value),
+        program_data: set_field(e.program_data, name, "ProgramData", "", value) }
 
 // The value a snapshot holds for a variable, or `""`.
 //
@@ -174,7 +239,21 @@ pub fn with_var(e: DirsEnv, name: Str, value: Str) -> DirsEnv []
 //     println(dirsenv.var_of(dirsenv.of(DirsXdg, "/home/ada"), "HOME"))
 // ```
 pub fn var_of(e: DirsEnv, name: Str) -> Str []
-    todo("dirs-nv.dirsenv.var_of")
+    match name
+        "HOME"            => e.home
+        "USERPROFILE"     => e.home
+        "XDG_CONFIG_HOME" => e.config_home
+        "XDG_DATA_HOME"   => e.data_home
+        "XDG_STATE_HOME"  => e.state_home
+        "XDG_CACHE_HOME"  => e.cache_home
+        "XDG_RUNTIME_DIR" => e.runtime_dir
+        "XDG_BIN_HOME"    => e.bin_home
+        "XDG_CONFIG_DIRS" => e.config_dirs
+        "XDG_DATA_DIRS"   => e.data_dirs
+        "APPDATA"         => e.app_data
+        "LOCALAPPDATA"    => e.local_app_data
+        "ProgramData"     => e.program_data
+        _                 => ""
 
 // Every variable name this package reads, in the order they are
 // documented.
@@ -194,7 +273,10 @@ pub fn var_of(e: DirsEnv, name: Str) -> Str []
 //     println("${list.len(dirsenv.variables())}")
 // ```
 pub fn variables() -> [Str] []
-    todo("dirs-nv.dirsenv.variables")
+    ["HOME", "USERPROFILE",
+     "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME",
+     "XDG_RUNTIME_DIR", "XDG_BIN_HOME", "XDG_CONFIG_DIRS", "XDG_DATA_DIRS",
+     "APPDATA", "LOCALAPPDATA", "ProgramData"]
 
 // The same snapshot resolved by a different platform's rules.
 //
@@ -210,4 +292,17 @@ pub fn variables() -> [Str] []
 //     println(dirskind.platform_name(e.platform))
 // ```
 pub fn as_platform(e: DirsEnv, p: dirskind.DirsPlatform) -> DirsEnv []
-    todo("dirs-nv.dirsenv.as_platform")
+    DirsEnv {
+        platform: p,
+        home: e.home,
+        config_home: e.config_home,
+        data_home: e.data_home,
+        state_home: e.state_home,
+        cache_home: e.cache_home,
+        runtime_dir: e.runtime_dir,
+        bin_home: e.bin_home,
+        config_dirs: e.config_dirs,
+        data_dirs: e.data_dirs,
+        app_data: e.app_data,
+        local_app_data: e.local_app_data,
+        program_data: e.program_data }

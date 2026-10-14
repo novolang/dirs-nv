@@ -23,8 +23,73 @@
 // system directory of each kind, so `site_config` and `site_data`
 // answer one entry there and several on an XDG system.
 
+use std.list
+use std.str
+use dirsbase
 use dirsenv
 use dirskind
+
+// A directory list split into its entries, with the empty ones
+// dropped: a path of nothing is not a directory.
+fn split_list(value: Str, sep: Str) -> [Str] []
+    var out: [Str] = []
+    for entry in str.split(value, sep)
+        if entry != ""
+            list.push(out, entry)
+    out
+
+// One entry from a directory the environment named, or an empty list
+// when it named none.  A system directory nobody told this package
+// about is not one it will invent.
+fn one_entry(path: Str) -> [Str] []
+    if path == ""
+        []
+    else
+        [path]
+
+// The XDG configuration list: the variable split on this platform's
+// list separator, or the specification's single default.
+fn xdg_config(e: dirsenv.DirsEnv) -> [Str] []
+    let set = dirsenv.var_of(e, "XDG_CONFIG_DIRS")
+    if set == ""
+        ["/etc/xdg"]
+    else
+        split_list(set, ":")
+
+// The XDG data list, whose default is two entries in the order that
+// finds a locally installed package's files before the distribution's.
+fn xdg_data(e: dirsenv.DirsEnv) -> [Str] []
+    let set = dirsenv.var_of(e, "XDG_DATA_DIRS")
+    if set == ""
+        ["/usr/local/share", "/usr/share"]
+    else
+        split_list(set, ":")
+
+// A relative path laid under a directory, with `/` written as the
+// platform's separator.  The join is a function rather than an
+// expression at each call site because a `+` written inside a match arm
+// is leaked by the 0.20.2 compiler whether or not the arm runs — a
+// shape `novo.lint` does not see and `novo test` reports as `the run
+// leaked`, exit 23.  The filing is
+// `language/a-join-in-a-match-arm-is-leaked-even-when-the-arm-is-not-taken`.
+// An empty relative path adds nothing, so the answer is the directory
+// itself rather than a trailing separator.
+fn under(base: Str, relative: Str, sep: Str) -> Str []
+    if relative == ""
+        base
+    else
+        base + sep + str.replace(relative, "/", sep)
+
+// The system-wide directories of a kind, or none for the kinds the
+// specification gives no list to.  A caller can ask for every kind
+// without first asking which ones have a list.
+fn site_dirs(e: dirsenv.DirsEnv, k: dirskind.DirsKind) -> [Str] []
+    if k == DirsConfig
+        site_config(e)
+    elif k == DirsData
+        site_data(e)
+    else
+        []
 
 // The system-wide configuration directories, in the order they are
 // searched.
@@ -41,7 +106,12 @@ use dirskind
 //     println("${list.len(dirssite.site_config(dirsenv.of(DirsXdg, "/home/ada")))}")
 // ```
 pub fn site_config(e: dirsenv.DirsEnv) -> [Str] []
-    todo("dirs-nv.dirssite.site_config")
+    if e.platform == DirsXdg
+        xdg_config(e)
+    elif e.platform == DirsMacos
+        ["/Library/Application Support"]
+    else
+        one_entry(e.program_data)
 
 // The system-wide data directories, in the order they are searched.
 //
@@ -57,7 +127,12 @@ pub fn site_config(e: dirsenv.DirsEnv) -> [Str] []
 //     println("${list.len(dirssite.site_data(dirsenv.of(DirsXdg, "/home/ada")))}")
 // ```
 pub fn site_data(e: dirsenv.DirsEnv) -> [Str] []
-    todo("dirs-nv.dirssite.site_data")
+    if e.platform == DirsXdg
+        xdg_data(e)
+    elif e.platform == DirsMacos
+        ["/Library/Application Support"]
+    else
+        one_entry(e.program_data)
 
 // Every directory a file of this kind is looked for in, in order.
 //
@@ -78,7 +153,12 @@ pub fn site_data(e: dirsenv.DirsEnv) -> [Str] []
 //     println("${list.len(dirssite.search_path(e, DirsConfig))}")
 // ```
 pub fn search_path(e: dirsenv.DirsEnv, k: dirskind.DirsKind) -> [Str] []
-    todo("dirs-nv.dirssite.search_path")
+    var out: [Str] = []
+    if let Some(mine) = dirsbase.base(e, k)
+        list.push(out, mine)
+    for entry in site_dirs(e, k)
+        list.push(out, entry)
+    out
 
 // Every place a named file would be looked for, in order.
 //
@@ -95,7 +175,11 @@ pub fn search_path(e: dirsenv.DirsEnv, k: dirskind.DirsKind) -> [Str] []
 //     println("${list.len(dirssite.candidates(e, DirsConfig, "novo/config.toml"))}")
 // ```
 pub fn candidates(e: dirsenv.DirsEnv, k: dirskind.DirsKind, relative: Str) -> [Str] []
-    todo("dirs-nv.dirssite.candidates")
+    var out: [Str] = []
+    let sep = dirskind.separator_of(e.platform)
+    for entry in search_path(e, k)
+        list.push(out, under(entry, relative, sep))
+    out
 
 // Whether a kind has system-wide directories at all.
 //
@@ -113,7 +197,7 @@ pub fn candidates(e: dirsenv.DirsEnv, k: dirskind.DirsKind, relative: Str) -> [S
 //     println("${dirssite.has_site_dirs(DirsCache)}")
 // ```
 pub fn has_site_dirs(k: dirskind.DirsKind) -> Bool []
-    todo("dirs-nv.dirssite.has_site_dirs")
+    k == DirsConfig or k == DirsData
 
 // The character a platform separates its directory lists with: `":"`
 // on XDG and macOS, `";"` on Windows.
@@ -130,4 +214,6 @@ pub fn has_site_dirs(k: dirskind.DirsKind) -> Bool []
 //     println(dirssite.list_separator_of(DirsWindows))
 // ```
 pub fn list_separator_of(p: dirskind.DirsPlatform) -> Str []
-    todo("dirs-nv.dirssite.list_separator_of")
+    match p
+        DirsWindows => ";"
+        _           => ":"

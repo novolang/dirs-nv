@@ -27,8 +27,12 @@
 // the other two platforms the base directories are already separate,
 // so no suffix is added.
 
+use std.list
+use std.str
+use dirsbase
 use dirsenv
 use dirskind
+use dirssite
 
 // A program, named the way each platform wants it named.
 //
@@ -49,6 +53,57 @@ pub struct DirsProject
     // platform, lower-cased and dashed on XDG.
     application: Str
 
+// A name as a DNS-ish label: lower case, with spaces written as
+// dashes.  That is what a folder inside a Linux user's `~/.config` is
+// expected to look like, and what the organisation in a reverse-DNS
+// identifier is written as.
+fn dashed(s: Str) -> Str []
+    str.replace(str.lower(s), " ", "-")
+
+// The parts of a name that are not empty, joined with a separator.  A
+// part nobody gave is left out rather than producing a stray dot or
+// backslash.
+fn joined(parts: [Str], sep: Str) -> Str []
+    var kept: [Str] = []
+    for part in parts
+        if part != ""
+            list.push(kept, part)
+    str.join(kept, sep)
+
+// A relative path laid under a directory, with `/` written as the
+// platform's separator.  The join is a function rather than an
+// expression at each call site because a `+` written inside a match arm
+// is leaked by the 0.20.2 compiler whether or not the arm runs — a
+// shape `novo.lint` does not see and `novo test` reports as `the run
+// leaked`, exit 23.  The filing is
+// `language/a-join-in-a-match-arm-is-leaked-even-when-the-arm-is-not-taken`.
+// An empty relative path adds nothing, so the answer is the directory
+// itself rather than a trailing separator.
+fn under(base: Str, relative: Str, sep: Str) -> Str []
+    if relative == ""
+        base
+    else
+        base + sep + str.replace(relative, "/", sep)
+
+// The project's folder laid under a shared directory, with the
+// platform's separator and, where the kind has a suffix, the suffix
+// after it.
+fn project_dir(shared: Str, folder: Str, suffix: Str, sep: Str) -> Str []
+    if suffix == ""
+        under(shared, folder, sep)
+    else
+        under(under(shared, folder, sep), suffix, sep)
+
+// The system-wide entries of a kind: the two lists the specification
+// defines, and nothing for the kinds it gives no list to.
+fn site_entries(e: dirsenv.DirsEnv, k: dirskind.DirsKind) -> [Str] []
+    if k == DirsConfig
+        dirssite.site_config(e)
+    elif k == DirsData
+        dirssite.site_data(e)
+    else
+        []
+
 // A project from its three names.
 //
 // An empty qualifier or organisation is allowed: a program that has
@@ -63,7 +118,10 @@ pub struct DirsProject
 //     println(dirsproject.folder_name(dirsproject.project("org", "Novo Lang", "Novo"), DirsXdg))
 // ```
 pub fn project(qualifier: Str, organization: Str, application: Str) -> DirsProject []
-    todo("dirs-nv.dirsproject.project")
+    DirsProject {
+        qualifier: qualifier,
+        organization: organization,
+        application: application }
 
 // The folder name this project uses on a platform.
 //
@@ -80,7 +138,12 @@ pub fn project(qualifier: Str, organization: Str, application: Str) -> DirsProje
 //     println(dirsproject.folder_name(p, DirsMacos))
 // ```
 pub fn folder_name(p: DirsProject, platform: dirskind.DirsPlatform) -> Str []
-    todo("dirs-nv.dirsproject.folder_name")
+    if platform == DirsXdg
+        dashed(p.application)
+    elif platform == DirsMacos
+        joined([p.qualifier, dashed(p.organization), p.application], ".")
+    else
+        joined([p.organization, p.application], "\\")
 
 // Where this project's directory of a kind is.
 //
@@ -100,7 +163,10 @@ pub fn folder_name(p: DirsProject, platform: dirskind.DirsPlatform) -> Str []
 //         None       => println("no home directory")
 // ```
 pub fn dir(e: dirsenv.DirsEnv, p: DirsProject, k: dirskind.DirsKind) -> ?Str []
-    todo("dirs-nv.dirsproject.dir")
+    let shared = dirsbase.base(e, k)!
+    let sep = dirskind.separator_of(e.platform)
+    let folder = folder_name(p, e.platform)
+    Some(project_dir(shared, folder, windows_suffix(k, e.platform), sep))
 
 // This project's configuration directory.
 //
@@ -115,7 +181,7 @@ pub fn dir(e: dirsenv.DirsEnv, p: DirsProject, k: dirskind.DirsKind) -> ?Str []
 //         None       => println("no home directory")
 // ```
 pub fn config(e: dirsenv.DirsEnv, p: DirsProject) -> ?Str []
-    todo("dirs-nv.dirsproject.config")
+    dir(e, p, DirsConfig)
 
 // This project's data directory.
 //
@@ -130,7 +196,7 @@ pub fn config(e: dirsenv.DirsEnv, p: DirsProject) -> ?Str []
 //         None       => println("no home directory")
 // ```
 pub fn data(e: dirsenv.DirsEnv, p: DirsProject) -> ?Str []
-    todo("dirs-nv.dirsproject.data")
+    dir(e, p, DirsData)
 
 // This project's cache directory.
 //
@@ -145,7 +211,7 @@ pub fn data(e: dirsenv.DirsEnv, p: DirsProject) -> ?Str []
 //         None       => println("no home directory")
 // ```
 pub fn cache(e: dirsenv.DirsEnv, p: DirsProject) -> ?Str []
-    todo("dirs-nv.dirsproject.cache")
+    dir(e, p, DirsCache)
 
 // This project's state directory: logs, history, a window layout.
 //
@@ -160,7 +226,7 @@ pub fn cache(e: dirsenv.DirsEnv, p: DirsProject) -> ?Str []
 //         None       => println("no home directory")
 // ```
 pub fn state(e: dirsenv.DirsEnv, p: DirsProject) -> ?Str []
-    todo("dirs-nv.dirsproject.state")
+    dir(e, p, DirsState)
 
 // This project's runtime directory, or `None`.
 //
@@ -178,7 +244,7 @@ pub fn state(e: dirsenv.DirsEnv, p: DirsProject) -> ?Str []
 //         None       => println("no runtime directory; use a temporary one")
 // ```
 pub fn runtime(e: dirsenv.DirsEnv, p: DirsProject) -> ?Str []
-    todo("dirs-nv.dirsproject.runtime")
+    dir(e, p, DirsRuntime)
 
 // A path inside this project's directory of a kind.
 //
@@ -197,7 +263,8 @@ pub fn runtime(e: dirsenv.DirsEnv, p: DirsProject) -> ?Str []
 //         None       => println("no home directory")
 // ```
 pub fn file(e: dirsenv.DirsEnv, p: DirsProject, k: dirskind.DirsKind, relative: Str) -> ?Str []
-    todo("dirs-nv.dirsproject.file")
+    let mine = dir(e, p, k)!
+    Some(under(mine, relative, dirskind.separator_of(e.platform)))
 
 // Every place this project's file of a kind would be looked for, in
 // order.
@@ -217,7 +284,15 @@ pub fn file(e: dirsenv.DirsEnv, p: DirsProject, k: dirskind.DirsKind, relative: 
 // ```
 pub fn candidates(e: dirsenv.DirsEnv, p: DirsProject, k: dirskind.DirsKind,
                   relative: Str) -> [Str] []
-    todo("dirs-nv.dirsproject.candidates")
+    var out: [Str] = []
+    let sep = dirskind.separator_of(e.platform)
+    let folder = folder_name(p, e.platform)
+    let suffix = windows_suffix(k, e.platform)
+    if let Some(shared) = dirsbase.base(e, k)
+        list.push(out, under(project_dir(shared, folder, suffix, sep), relative, sep))
+    for entry in site_entries(e, k)
+        list.push(out, under(project_dir(entry, folder, suffix, sep), relative, sep))
+    out
 
 // The extra folder a Windows path gets after the project's, or `""`.
 //
@@ -234,7 +309,10 @@ pub fn candidates(e: dirsenv.DirsEnv, p: DirsProject, k: dirskind.DirsKind,
 //     println(dirsproject.windows_suffix(DirsCache, DirsXdg))
 // ```
 pub fn windows_suffix(k: dirskind.DirsKind, platform: dirskind.DirsPlatform) -> Str []
-    todo("dirs-nv.dirsproject.windows_suffix")
+    if platform == DirsWindows
+        dirskind.kind_name(k)
+    else
+        ""
 
 // The base directory this project's directory of a kind sits inside.
 //
@@ -253,4 +331,4 @@ pub fn windows_suffix(k: dirskind.DirsKind, platform: dirskind.DirsPlatform) -> 
 //         None       => println("no home directory")
 // ```
 pub fn base_of(e: dirsenv.DirsEnv, k: dirskind.DirsKind) -> ?Str []
-    todo("dirs-nv.dirsproject.base_of")
+    dirsbase.base(e, k)

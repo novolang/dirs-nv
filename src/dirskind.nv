@@ -106,7 +106,16 @@ pub enum DirsPlatform
 //     println(dirskind.kind_name(DirsDataLocal))
 // ```
 pub fn kind_name(k: DirsKind) -> Str []
-    todo("dirs-nv.dirskind.kind_name")
+    match k
+        DirsHome        => "home"
+        DirsConfig      => "config"
+        DirsConfigLocal => "config-local"
+        DirsData        => "data"
+        DirsDataLocal   => "data-local"
+        DirsCache       => "cache"
+        DirsState       => "state"
+        DirsRuntime     => "runtime"
+        DirsExecutable  => "executable"
 
 // The platform's name for a message: `"xdg"`, `"macos"`, `"windows"`.
 //
@@ -117,7 +126,10 @@ pub fn kind_name(k: DirsKind) -> Str []
 //     println(dirskind.platform_name(DirsWindows))
 // ```
 pub fn platform_name(p: DirsPlatform) -> Str []
-    todo("dirs-nv.dirskind.platform_name")
+    match p
+        DirsXdg     => "xdg"
+        DirsMacos   => "macos"
+        DirsWindows => "windows"
 
 // Every kind, in the order they are documented.
 //
@@ -132,7 +144,45 @@ pub fn platform_name(p: DirsPlatform) -> Str []
 //     println("${list.len(dirskind.kinds())}")
 // ```
 pub fn kinds() -> [DirsKind] []
-    todo("dirs-nv.dirskind.kinds")
+    [DirsHome, DirsConfig, DirsConfigLocal, DirsData, DirsDataLocal,
+     DirsCache, DirsState, DirsRuntime, DirsExecutable]
+
+// The XDG column of the table.  The local kinds read the same
+// variable as the roaming ones, because there is no roaming here for
+// them to differ from.
+fn xdg_variable(k: DirsKind) -> Str []
+    match k
+        DirsHome        => "HOME"
+        DirsConfig      => "XDG_CONFIG_HOME"
+        DirsConfigLocal => "XDG_CONFIG_HOME"
+        DirsData        => "XDG_DATA_HOME"
+        DirsDataLocal   => "XDG_DATA_HOME"
+        DirsCache       => "XDG_CACHE_HOME"
+        DirsState       => "XDG_STATE_HOME"
+        DirsRuntime     => "XDG_RUNTIME_DIR"
+        DirsExecutable  => "XDG_BIN_HOME"
+
+// The macOS column.  Every directory is derived from the home
+// directory, so the home directory is the only kind that names a
+// variable at all.
+fn macos_variable(k: DirsKind) -> Str []
+    match k
+        DirsHome => "HOME"
+        _        => ""
+
+// The Windows column.  The local kinds read `LOCALAPPDATA` and the
+// roaming ones `APPDATA`, which is the distinction they exist for.
+fn windows_variable(k: DirsKind) -> Str []
+    match k
+        DirsHome        => "USERPROFILE"
+        DirsConfig      => "APPDATA"
+        DirsConfigLocal => "LOCALAPPDATA"
+        DirsData        => "APPDATA"
+        DirsDataLocal   => "LOCALAPPDATA"
+        DirsCache       => "LOCALAPPDATA"
+        DirsState       => "LOCALAPPDATA"
+        DirsRuntime     => ""
+        DirsExecutable  => ""
 
 // The environment variable a kind is read from on a platform, or `""`
 // when that platform reads none.
@@ -153,14 +203,19 @@ pub fn kinds() -> [DirsKind] []
 //     println(dirskind.variable_of(DirsData, DirsWindows))
 // ```
 pub fn variable_of(k: DirsKind, p: DirsPlatform) -> Str []
-    todo("dirs-nv.dirskind.variable_of")
+    match p
+        DirsXdg     => xdg_variable(k)
+        DirsMacos   => macos_variable(k)
+        DirsWindows => windows_variable(k)
 
 // Whether a kind can be answered when its variable is unset.
 //
-// True for every kind but two.  `DirsRuntime` has no fallback on any
-// platform: the XDG specification says an application must not create
-// one itself, and neither macOS nor Windows has an equivalent
-// directory. `DirsExecutable` has none outside XDG.
+// True for every kind but three.  `DirsHome` is the root the other
+// fallbacks are relative to, so there is nothing for it to fall back
+// to.  `DirsRuntime` has no fallback on any platform: the XDG
+// specification says an application must not create one itself, and
+// neither macOS nor Windows has an equivalent directory.
+// `DirsExecutable` has none outside XDG.
 //
 // A caller that reads this knows in advance which answers may be
 // `None`, rather than finding out per call.
@@ -173,7 +228,54 @@ pub fn variable_of(k: DirsKind, p: DirsPlatform) -> Str []
 //     println("${dirskind.has_fallback(DirsRuntime, DirsXdg)}")
 // ```
 pub fn has_fallback(k: DirsKind, p: DirsPlatform) -> Bool []
-    todo("dirs-nv.dirskind.has_fallback")
+    fallback_of(k, p) != ""
+
+// The XDG column of the fallback table.  The home directory is the
+// root every other fallback is relative to, so it has none of its own,
+// and a runtime directory has none by design.
+fn xdg_fallback(k: DirsKind) -> Str []
+    match k
+        DirsHome        => ""
+        DirsConfig      => ".config"
+        DirsConfigLocal => ".config"
+        DirsData        => ".local/share"
+        DirsDataLocal   => ".local/share"
+        DirsCache       => ".cache"
+        DirsState       => ".local/state"
+        DirsRuntime     => ""
+        DirsExecutable  => ".local/bin"
+
+// The macOS column, which is the whole of the macOS table: the Library
+// layout, relative to the home directory.  Nothing there has a
+// per-user bin directory, and `platformdirs` puts application state in
+// Application Support beside the data, so both kinds name it.
+fn macos_fallback(k: DirsKind) -> Str []
+    match k
+        DirsHome        => ""
+        DirsConfig      => "Library/Application Support"
+        DirsConfigLocal => "Library/Application Support"
+        DirsData        => "Library/Application Support"
+        DirsDataLocal   => "Library/Application Support"
+        DirsCache       => "Library/Caches"
+        DirsState       => "Library/Application Support"
+        DirsRuntime     => ""
+        DirsExecutable  => ""
+
+// The Windows column.  The two application-data folders are the ones
+// `USERPROFILE` holds, so a kind whose variable is unset still has a
+// real directory to name.  Written with the separator Windows spells
+// its paths with.
+fn windows_fallback(k: DirsKind) -> Str []
+    match k
+        DirsHome        => ""
+        DirsConfig      => "AppData\\Roaming"
+        DirsConfigLocal => "AppData\\Local"
+        DirsData        => "AppData\\Roaming"
+        DirsDataLocal   => "AppData\\Local"
+        DirsCache       => "AppData\\Local"
+        DirsState       => "AppData\\Local"
+        DirsRuntime     => ""
+        DirsExecutable  => ""
 
 // The path appended to the home directory when a kind's variable is
 // unset, or `""` when the kind has no fallback on that platform.
@@ -190,7 +292,16 @@ pub fn has_fallback(k: DirsKind, p: DirsPlatform) -> Bool []
 //     println(dirskind.fallback_of(DirsCache, DirsMacos))
 // ```
 pub fn fallback_of(k: DirsKind, p: DirsPlatform) -> Str []
-    todo("dirs-nv.dirskind.fallback_of")
+    match p
+        DirsXdg     => xdg_fallback(k)
+        DirsMacos   => macos_fallback(k)
+        DirsWindows => windows_fallback(k)
+
+// Whether a kind names a directory at all on a platform: it has a
+// variable to read or a fallback to derive.  Two kinds that name none
+// are not the same directory, because neither of them is a directory.
+fn names_a_directory(k: DirsKind, p: DirsPlatform) -> Bool []
+    variable_of(k, p) != "" or fallback_of(k, p) != ""
 
 // Whether a kind is the same directory as another on a platform.
 //
@@ -207,7 +318,13 @@ pub fn fallback_of(k: DirsKind, p: DirsPlatform) -> Str []
 //     println("${dirskind.same_as(DirsConfigLocal, DirsConfig, DirsWindows)}")
 // ```
 pub fn same_as(a: DirsKind, b: DirsKind, p: DirsPlatform) -> Bool []
-    todo("dirs-nv.dirskind.same_as")
+    if a == b
+        true
+    elif not names_a_directory(a, p) or not names_a_directory(b, p)
+        false
+    else
+        variable_of(a, p) == variable_of(b, p)
+            and fallback_of(a, p) == fallback_of(b, p)
 
 // The path separator a platform spells its directories with: `"/"` or
 // `"\\"`.
@@ -223,4 +340,6 @@ pub fn same_as(a: DirsKind, b: DirsKind, p: DirsPlatform) -> Bool []
 //     println(dirskind.separator_of(DirsWindows))
 // ```
 pub fn separator_of(p: DirsPlatform) -> Str []
-    todo("dirs-nv.dirskind.separator_of")
+    match p
+        DirsWindows => "\\"
+        _           => "/"

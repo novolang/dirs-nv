@@ -1,11 +1,9 @@
 // dirsbase_tests.nv — resolution, over a snapshot a test builds
 // itself.
 //
-// RED ON PURPOSE: every assertion reaches `not implemented:
-// dirs-nv.dirsbase.<fn>` or `dirs-nv.dirsenv.<fn>`.  What is asserted
-// is that a variable wins over a fallback, that an empty variable is
-// treated as unset, that no home directory means no answer, and that
-// three platforms' answers come out of one snapshot.
+// What is asserted is that a variable wins over a fallback, that an
+// empty variable is treated as unset, that no home directory means no
+// answer, and that three platforms' answers come out of one snapshot.
 //
 // NOT ONE OF THESE CASES READS THE ENVIRONMENT.  That is the shape the
 // package is built in: `dirsenv.capture` is the only function with an

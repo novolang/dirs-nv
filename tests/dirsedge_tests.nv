@@ -1,0 +1,344 @@
+// dirsedge_tests.nv — the whole table, cell by cell, and the branches
+// the four suites above happen not to walk.
+//
+// WHY THE TABLE IS WRITTEN OUT.  The four suites above assert the
+// answers a program asks for.  This one asserts the table those answers
+// come from: nine kinds against three platforms, twice — the variable
+// each platform reads and the fallback it derives — so that a reader
+// checking this package against the specification reads the same
+// ninety numbers here as in `dirskind`.  A table is the one shape
+// where a sampled test is not enough: a cell nothing calls is a cell
+// nothing checks, and this suite is what makes every cell checked.
+//
+// THE TWO BRANCHES THAT NEED AN EDGE: an empty relative path (a caller
+// asking for the directory itself rather than a file in it), and a kind
+// that names no directory at all on a platform, which is the only way
+// `same_as` can answer false without two different tables.
+//
+// NOT ONE OF THESE CASES READS THE ENVIRONMENT, except the two calls
+// that check `capture` agrees with `host_platform` — and those assert
+// only the platform, which is the same answer on every machine this
+// suite could run on.
+
+use std.test
+use dirsbase
+use dirsenv
+use dirsproject
+use dirskind
+use dirssite
+
+@test
+fn test_every_kind_names_itself_and_so_does_every_platform() [io]
+    test.case("the nine kind names, which are also the Windows suffixes")
+    test.assert(dirskind.kind_name(DirsHome) == "home")
+    test.assert(dirskind.kind_name(DirsConfig) == "config")
+    test.assert(dirskind.kind_name(DirsConfigLocal) == "config-local")
+    test.assert(dirskind.kind_name(DirsData) == "data")
+    test.assert(dirskind.kind_name(DirsDataLocal) == "data-local")
+    test.assert(dirskind.kind_name(DirsCache) == "cache")
+    test.assert(dirskind.kind_name(DirsState) == "state")
+    test.assert(dirskind.kind_name(DirsRuntime) == "runtime")
+    test.assert(dirskind.kind_name(DirsExecutable) == "executable")
+
+    test.case("the three platform names")
+    test.assert(dirskind.platform_name(DirsXdg) == "xdg")
+    test.assert(dirskind.platform_name(DirsMacos) == "macos")
+    test.assert(dirskind.platform_name(DirsWindows) == "windows")
+
+    test.case("and the separator each one spells its paths with")
+    test.assert(dirskind.separator_of(DirsXdg) == "/")
+    test.assert(dirskind.separator_of(DirsMacos) == "/")
+    test.assert(dirskind.separator_of(DirsWindows) == "\\")
+
+@test
+fn test_the_xdg_column_is_the_specification_verbatim() [io]
+    test.case("the variable each kind is read from, or none")
+    test.assert(dirskind.variable_of(DirsHome, DirsXdg) == "HOME")
+    test.assert(dirskind.variable_of(DirsConfig, DirsXdg) == "XDG_CONFIG_HOME")
+    test.assert(dirskind.variable_of(DirsConfigLocal, DirsXdg) == "XDG_CONFIG_HOME")
+    test.assert(dirskind.variable_of(DirsData, DirsXdg) == "XDG_DATA_HOME")
+    test.assert(dirskind.variable_of(DirsDataLocal, DirsXdg) == "XDG_DATA_HOME")
+    test.assert(dirskind.variable_of(DirsCache, DirsXdg) == "XDG_CACHE_HOME")
+    test.assert(dirskind.variable_of(DirsState, DirsXdg) == "XDG_STATE_HOME")
+    test.assert(dirskind.variable_of(DirsRuntime, DirsXdg) == "XDG_RUNTIME_DIR")
+    test.assert(dirskind.variable_of(DirsExecutable, DirsXdg) == "XDG_BIN_HOME")
+
+    test.case("and the path appended to the home directory it falls back to")
+    test.assert(dirskind.fallback_of(DirsHome, DirsXdg) == "")
+    test.assert(dirskind.fallback_of(DirsConfig, DirsXdg) == ".config")
+    test.assert(dirskind.fallback_of(DirsConfigLocal, DirsXdg) == ".config")
+    test.assert(dirskind.fallback_of(DirsData, DirsXdg) == ".local/share")
+    test.assert(dirskind.fallback_of(DirsDataLocal, DirsXdg) == ".local/share")
+    test.assert(dirskind.fallback_of(DirsCache, DirsXdg) == ".cache")
+    test.assert(dirskind.fallback_of(DirsState, DirsXdg) == ".local/state")
+    test.assert(dirskind.fallback_of(DirsRuntime, DirsXdg) == "")
+    test.assert(dirskind.fallback_of(DirsExecutable, DirsXdg) == ".local/bin")
+
+@test
+fn test_the_macos_column_derives_everything_from_the_home_directory() [io]
+    test.case("one variable, the home directory, and none of its own")
+    test.assert(dirskind.variable_of(DirsHome, DirsMacos) == "HOME")
+    test.assert(dirskind.variable_of(DirsConfig, DirsMacos) == "")
+    test.assert(dirskind.variable_of(DirsConfigLocal, DirsMacos) == "")
+    test.assert(dirskind.variable_of(DirsData, DirsMacos) == "")
+    test.assert(dirskind.variable_of(DirsDataLocal, DirsMacos) == "")
+    test.assert(dirskind.variable_of(DirsCache, DirsMacos) == "")
+    test.assert(dirskind.variable_of(DirsState, DirsMacos) == "")
+    test.assert(dirskind.variable_of(DirsRuntime, DirsMacos) == "")
+    test.assert(dirskind.variable_of(DirsExecutable, DirsMacos) == "")
+
+    test.case("the Library layout, relative to it")
+    test.assert(dirskind.fallback_of(DirsHome, DirsMacos) == "")
+    test.assert(dirskind.fallback_of(DirsConfig, DirsMacos) == "Library/Application Support")
+    test.assert(dirskind.fallback_of(DirsConfigLocal, DirsMacos) == "Library/Application Support")
+    test.assert(dirskind.fallback_of(DirsData, DirsMacos) == "Library/Application Support")
+    test.assert(dirskind.fallback_of(DirsDataLocal, DirsMacos) == "Library/Application Support")
+    test.assert(dirskind.fallback_of(DirsCache, DirsMacos) == "Library/Caches")
+    test.assert(dirskind.fallback_of(DirsState, DirsMacos) == "Library/Application Support")
+    test.assert(dirskind.fallback_of(DirsRuntime, DirsMacos) == "")
+    test.assert(dirskind.fallback_of(DirsExecutable, DirsMacos) == "")
+
+@test
+fn test_the_windows_column_is_the_roaming_and_local_split() [io]
+    test.case("the variable each kind is read from, and the two that read none")
+    test.assert(dirskind.variable_of(DirsHome, DirsWindows) == "USERPROFILE")
+    test.assert(dirskind.variable_of(DirsConfig, DirsWindows) == "APPDATA")
+    test.assert(dirskind.variable_of(DirsConfigLocal, DirsWindows) == "LOCALAPPDATA")
+    test.assert(dirskind.variable_of(DirsData, DirsWindows) == "APPDATA")
+    test.assert(dirskind.variable_of(DirsDataLocal, DirsWindows) == "LOCALAPPDATA")
+    test.assert(dirskind.variable_of(DirsCache, DirsWindows) == "LOCALAPPDATA")
+    test.assert(dirskind.variable_of(DirsState, DirsWindows) == "LOCALAPPDATA")
+    test.assert(dirskind.variable_of(DirsRuntime, DirsWindows) == "")
+    test.assert(dirskind.variable_of(DirsExecutable, DirsWindows) == "")
+
+    test.case("and the two application-data folders a name still finds")
+    test.assert(dirskind.fallback_of(DirsHome, DirsWindows) == "")
+    test.assert(dirskind.fallback_of(DirsConfig, DirsWindows) == "AppData\\Roaming")
+    test.assert(dirskind.fallback_of(DirsConfigLocal, DirsWindows) == "AppData\\Local")
+    test.assert(dirskind.fallback_of(DirsData, DirsWindows) == "AppData\\Roaming")
+    test.assert(dirskind.fallback_of(DirsDataLocal, DirsWindows) == "AppData\\Local")
+    test.assert(dirskind.fallback_of(DirsCache, DirsWindows) == "AppData\\Local")
+    test.assert(dirskind.fallback_of(DirsState, DirsWindows) == "AppData\\Local")
+    test.assert(dirskind.fallback_of(DirsRuntime, DirsWindows) == "")
+    test.assert(dirskind.fallback_of(DirsExecutable, DirsWindows) == "")
+
+@test
+fn test_a_fallback_exists_exactly_when_a_platform_gives_one() [io]
+    test.case("the runtime directory has none anywhere")
+    test.assert(not dirskind.has_fallback(DirsRuntime, DirsXdg))
+    test.assert(not dirskind.has_fallback(DirsRuntime, DirsMacos))
+    test.assert(not dirskind.has_fallback(DirsRuntime, DirsWindows))
+
+    test.case("the home directory is the root the others fall back to")
+    test.assert(not dirskind.has_fallback(DirsHome, DirsXdg))
+    test.assert(not dirskind.has_fallback(DirsHome, DirsMacos))
+    test.assert(not dirskind.has_fallback(DirsHome, DirsWindows))
+
+    test.case("the per-user bin directory exists on XDG and nowhere else")
+    test.assert(dirskind.has_fallback(DirsExecutable, DirsXdg))
+    test.assert(not dirskind.has_fallback(DirsExecutable, DirsMacos))
+    test.assert(not dirskind.has_fallback(DirsExecutable, DirsWindows))
+
+    test.case("and every other cell of the table has one")
+    for p in [DirsXdg, DirsMacos, DirsWindows]
+        test.assert(dirskind.has_fallback(DirsConfig, p))
+        test.assert(dirskind.has_fallback(DirsConfigLocal, p))
+        test.assert(dirskind.has_fallback(DirsData, p))
+        test.assert(dirskind.has_fallback(DirsDataLocal, p))
+        test.assert(dirskind.has_fallback(DirsCache, p))
+        test.assert(dirskind.has_fallback(DirsState, p))
+
+@test
+fn test_two_kinds_are_the_same_directory_only_when_the_table_says_so() [io]
+    test.case("a kind is always the same as itself, the runtime included")
+    test.assert(dirskind.same_as(DirsRuntime, DirsRuntime, DirsXdg))
+    test.assert(dirskind.same_as(DirsRuntime, DirsRuntime, DirsWindows))
+
+    test.case("the roaming and local kinds are one directory where there is no roaming")
+    test.assert(dirskind.same_as(DirsConfigLocal, DirsConfig, DirsXdg))
+    test.assert(dirskind.same_as(DirsDataLocal, DirsData, DirsXdg))
+    test.assert(dirskind.same_as(DirsConfigLocal, DirsConfig, DirsMacos))
+    test.assert(dirskind.same_as(DirsDataLocal, DirsData, DirsMacos))
+
+    test.case("and two directories on Windows, which is why they exist")
+    test.assert(not dirskind.same_as(DirsConfigLocal, DirsConfig, DirsWindows))
+    test.assert(not dirskind.same_as(DirsDataLocal, DirsData, DirsWindows))
+
+    test.case("two kinds that name no directory are not the same directory")
+    // macOS and Windows give neither of these a fallback, and neither
+    // reads a variable there, so there is nothing for them to be equal
+    // to — not even each other.
+    test.assert(not dirskind.same_as(DirsRuntime, DirsExecutable, DirsMacos))
+    test.assert(not dirskind.same_as(DirsRuntime, DirsCache, DirsWindows))
+    test.assert(not dirskind.same_as(DirsExecutable, DirsCache, DirsWindows))
+
+    test.case("and two kinds with different tables are different directories")
+    test.assert(not dirskind.same_as(DirsConfig, DirsData, DirsXdg))
+    test.assert(not dirskind.same_as(DirsCache, DirsState, DirsXdg))
+
+@test
+fn test_the_snapshot_reads_back_every_name_it_says_it_reads() [io]
+    test.case("thirteen names, each one written and read back")
+    let names = dirsenv.variables()
+    test.assert(list.len(names) == 13)
+    for name in names
+        let named = dirsenv.with_var(dirsenv.of(DirsXdg, ""), name, "set-by-${name}")
+        test.assert(dirsenv.var_of(named, name) == "set-by-${name}")
+
+    test.case("the home directory has two names and one field")
+    let spelled = dirsenv.with_var(dirsenv.of(DirsWindows, ""), "USERPROFILE", "C:\\Users\\Ada")
+    test.assert(dirsenv.var_of(spelled, "HOME") == "C:\\Users\\Ada")
+    test.assert(dirsenv.var_of(spelled, "USERPROFILE") == "C:\\Users\\Ada")
+
+    test.case("a variable nobody documented is not one this package reads")
+    test.assert(dirsenv.var_of(dirsenv.of(DirsXdg, "/home/ada"), "PATH") == "")
+    test.assert(dirsenv.var_of(dirsenv.of(DirsXdg, "/home/ada"), "PROGRAMDATA") == "")
+    test.assert(not list.contains(names, "PATH"))
+
+@test
+fn test_the_one_function_that_reads_the_environment_agrees_with_the_host() [io]
+    // These two calls perform; everything else in this suite does not.
+    // Only the platform is asserted, because that is the one answer
+    // this suite can know without knowing the machine it runs on.
+    test.case("capture resolves by the platform the host names")
+    test.assert(dirsenv.capture().platform == dirsenv.host_platform())
+
+    test.case("and capture_as resolves by the platform it was asked for")
+    test.assert(dirsenv.capture_as(DirsWindows).platform == DirsWindows)
+    test.assert(dirsenv.capture_as(DirsMacos).platform == DirsMacos)
+
+@test
+fn test_a_machine_that_sets_nothing_gets_nothing_invented() [io]
+    // The deployment fault the module header names: a daemon, a
+    // container, a CI runner.  There is no home directory to derive
+    // from and no variable to read, so every per-user answer is `None`
+    // — on all three platforms, because the rule that needs a home
+    // directory is the same rule everywhere.
+    test.case("no home directory, no variable, no answer")
+    for p in [DirsXdg, DirsMacos, DirsWindows]
+        let empty = dirsenv.of(p, "")
+        for k in dirskind.kinds()
+            match dirsbase.base(empty, k)
+                Some(_) => test.fail("an empty environment named a directory")
+                None    => test.assert(true)
+
+    test.case("and no project directory either, since it is laid under one")
+    let project = dirsproject.project("org", "Novo Lang", "Novo")
+    for p in [DirsXdg, DirsMacos, DirsWindows]
+        let empty = dirsenv.of(p, "")
+        match dirsproject.dir(empty, project, DirsConfig)
+            Some(_) => test.fail("there is no base directory to put a project in")
+            None    => test.assert(true)
+
+    test.case("while the system-wide lists are the specification's defaults, not a guess")
+    // These are not read from anybody's environment, so they are
+    // answered even when nothing is set: the specification fixes them.
+    let bare = dirsenv.of(DirsXdg, "")
+    test.assert(dirssite.search_path(bare, DirsConfig) == ["/etc/xdg"])
+    test.assert(dirssite.search_path(bare, DirsData)
+                == ["/usr/local/share", "/usr/share"])
+
+@test
+fn test_the_system_wide_lists_are_each_platforms_own_and_in_order() [io]
+    test.case("XDG reads its two lists, or the two defaults")
+    let bare = dirsenv.of(DirsXdg, "/home/ada")
+    test.assert(dirssite.site_config(bare) == ["/etc/xdg"])
+    test.assert(dirssite.site_data(bare) == ["/usr/local/share", "/usr/share"])
+
+    test.case("and splits a set list on the colon, dropping an empty entry")
+    let set = dirsenv.with_var(dirsenv.with_var(bare, "XDG_CONFIG_DIRS", "/etc/xdg:/usr/local/etc/xdg"),
+                               "XDG_DATA_DIRS", "/srv/share:")
+    test.assert(dirssite.site_config(set) == ["/etc/xdg", "/usr/local/etc/xdg"])
+    test.assert(dirssite.site_data(set) == ["/srv/share"])
+
+    test.case("macOS has one system directory of each kind")
+    let mac = dirsenv.of(DirsMacos, "/Users/ada")
+    test.assert(dirssite.site_config(mac) == ["/Library/Application Support"])
+    test.assert(dirssite.site_data(mac) == ["/Library/Application Support"])
+
+    test.case("Windows reads ProgramData, and invents nothing when it is unset")
+    let win = dirsenv.of(DirsWindows, "C:\\Users\\Ada")
+    test.assert(dirssite.site_config(win) == [])
+    test.assert(dirssite.site_data(win) == [])
+    let told = dirsenv.with_var(win, "ProgramData", "C:\\ProgramData")
+    test.assert(dirssite.site_config(told) == ["C:\\ProgramData"])
+    test.assert(dirssite.site_data(told) == ["C:\\ProgramData"])
+
+    test.case("the user's own directory comes first, then each system entry")
+    let user = dirsenv.with_var(told, "APPDATA", "C:\\Users\\Ada\\AppData\\Roaming")
+    test.assert(dirssite.search_path(user, DirsConfig)
+                == ["C:\\Users\\Ada\\AppData\\Roaming", "C:\\ProgramData"])
+
+    test.case("and a kind with no system list answers just the user's directory")
+    test.assert(dirssite.search_path(user, DirsCache)
+                == ["C:\\Users\\Ada\\AppData\\Local"])
+
+@test
+fn test_which_kinds_have_system_wide_directories_at_all() [io]
+    test.case("configuration and data, and the specification's other six not")
+    test.assert(dirssite.has_site_dirs(DirsConfig))
+    test.assert(dirssite.has_site_dirs(DirsData))
+    test.assert(not dirssite.has_site_dirs(DirsHome))
+    test.assert(not dirssite.has_site_dirs(DirsConfigLocal))
+    test.assert(not dirssite.has_site_dirs(DirsDataLocal))
+    test.assert(not dirssite.has_site_dirs(DirsCache))
+    test.assert(not dirssite.has_site_dirs(DirsState))
+    test.assert(not dirssite.has_site_dirs(DirsRuntime))
+    test.assert(not dirssite.has_site_dirs(DirsExecutable))
+
+    test.case("and a program asking for every kind gets no list for those six")
+    let e = dirsenv.of(DirsXdg, "/home/ada")
+    test.assert(list.len(dirssite.search_path(e, DirsCache)) == 1)
+    test.assert(list.len(dirssite.search_path(e, DirsConfig)) == 2)
+
+    test.case("a list is separated by a colon, except on Windows")
+    test.assert(dirssite.list_separator_of(DirsXdg) == ":")
+    test.assert(dirssite.list_separator_of(DirsMacos) == ":")
+    test.assert(dirssite.list_separator_of(DirsWindows) == ";")
+
+@test
+fn test_an_empty_relative_path_asks_for_the_directory_itself() [io]
+    // The branch a caller takes when it wants the directory rather than
+    // a file in it, and the one place a trailing separator could be
+    // invented: an empty relative path adds nothing at all.
+    let e = dirsenv.of(DirsXdg, "/home/ada")
+    let project = dirsproject.project("org", "Novo Lang", "Novo")
+
+    test.case("a base directory, with nothing appended")
+    match dirsbase.join(e, DirsConfig, "")
+        Some(path) => test.assert(path == "/home/ada/.config")
+        None       => test.fail("a home directory was given")
+
+    test.case("a project's directory, with nothing appended")
+    match dirsproject.file(e, project, DirsConfig, "")
+        Some(path) => test.assert(path == "/home/ada/.config/novo")
+        None       => test.fail("a home directory was given")
+
+    test.case("and every search-path entry as it stands")
+    test.assert(dirssite.candidates(e, DirsConfig, "") == ["/home/ada/.config", "/etc/xdg"])
+
+    test.case("while a real relative path is appended to each of them")
+    test.assert(dirssite.candidates(e, DirsConfig, "novo/config.toml")
+                == ["/home/ada/.config/novo/config.toml", "/etc/xdg/novo/config.toml"])
+
+@test
+fn test_a_projects_candidates_cover_both_lists_whatever_the_kind() [io]
+    test.case("data has a system list, so the user's copy comes before it")
+    let e = dirsenv.of(DirsXdg, "/home/ada")
+    let p = dirsproject.project("org", "Novo Lang", "Novo")
+    test.assert(dirsproject.candidates(e, p, DirsData, "data.db")
+                == ["/home/ada/.local/share/novo/data.db",
+                    "/usr/local/share/novo/data.db",
+                    "/usr/share/novo/data.db"])
+
+    test.case("and a kind with none answers the user's directory alone")
+    test.assert(dirsproject.candidates(e, p, DirsCache, "cache.bin")
+                == ["/home/ada/.cache/novo/cache.bin"])
+
+    test.case("on Windows both entries carry the kind's own suffix")
+    let win = dirsenv.with_var(dirsenv.with_var(dirsenv.of(DirsWindows, "C:\\Users\\Ada"),
+                                                "APPDATA", "C:\\Users\\Ada\\AppData\\Roaming"),
+                               "ProgramData", "C:\\ProgramData")
+    test.assert(dirsproject.candidates(win, p, DirsConfig, "novo.toml")
+                == ["C:\\Users\\Ada\\AppData\\Roaming\\Novo Lang\\Novo\\config\\novo.toml",
+                    "C:\\ProgramData\\Novo Lang\\Novo\\config\\novo.toml"])

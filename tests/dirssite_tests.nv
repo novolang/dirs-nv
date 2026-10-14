@@ -1,11 +1,9 @@
 // dirssite_tests.nv — the lists, and the order a file is looked for
 // in.
 //
-// RED ON PURPOSE: every assertion reaches `not implemented:
-// dirs-nv.dirssite.<fn>`.  What is asserted is that the defaults are
-// the specification's, in its order, that the user's own directory
-// comes first, and that a kind with no system-wide counterpart still
-// answers a usable list.
+// What is asserted is that the defaults are the specification's, in
+// its order, that the user's own directory comes first, and that a
+// kind with no system-wide counterpart still answers a usable list.
 
 use std.test
 use dirsenv

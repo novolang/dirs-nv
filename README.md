@@ -8,12 +8,6 @@ version 0.8. On macOS it is the `~/Library` layout, and on Windows it
 is the roaming and local application-data folders. This package answers
 where each directory is, on all three.
 
-**Status: NOT IMPLEMENTED — interface only.** Every function is
-declared with its full signature, but every body is a `todo()` that
-panics when called. The package is published so its design can be
-reviewed and depended on before it is implemented. Version 0.1.0 will
-be the first working release.
-
 ## What the directories are
 
 A **base directory** is a place a program is meant to write into. There
@@ -108,10 +102,7 @@ fn main() [io]
         None       => println("no runtime directory; using a temporary one")
 ```
 
-Build and test with `novo pkg build` and `novo test`. Today `novo test`
-fails on purpose: every test reaches a
-`not implemented: dirs-nv.<module>.<fn>` panic. The tests are the
-specification the implementation will have to satisfy.
+Build and test with `novo pkg build` and `novo test`.
 
 ## What the package contains
 
@@ -234,6 +225,7 @@ novo test tests/dirskind_tests.nv      # the table, against the specification
 novo test tests/dirsbase_tests.nv      # resolution, over a snapshot
 novo test tests/dirssite_tests.nv      # the lists and their order
 novo test tests/dirsproject_tests.nv   # a project's folder, three ways
+novo test tests/dirsedge_tests.nv      # every cell of the table, and the edges
 ```
 
 The normative source is the XDG Base Directory Specification version
@@ -241,37 +233,17 @@ The normative source is the XDG Base Directory Specification version
 whose three-name project identifier this package takes, and the Python
 package `platformdirs`.
 
-All but one of the cases build their own `DirsEnv` and read no
-environment at all, including the cases that check the macOS and
-Windows rules. The suite asserts that a set variable wins over a
-fallback and an empty one does not, that no home directory gives
-`None` rather than a path beginning with a slash, that the runtime
-directory is never invented, that the user's directory comes first in
-a search path, and that each platform spells a project folder its own
-way.
-
-The tests compile today and fail at run, each on the
-`not implemented: dirs-nv.<module>.<fn>` panic that is its body. That
-is the expected state of an interface release. They turn green one at a
-time as bodies land.
-
-## Implementation status
-
-| Item | Implemented |
-| --- | --- |
-| `dirskind.DirsKind`, `.DirsPlatform`, `dirsenv.DirsEnv`, `dirsproject.DirsProject` | the types are declared |
-| `dirskind.kind_name`, `.platform_name`, `.kinds`, `.separator_of` | no |
-| `dirskind.variable_of`, `.fallback_of`, `.has_fallback`, `.same_as` | no |
-| `dirsenv.capture`, `.capture_as`, `.host_platform` | no |
-| `dirsenv.of`, `.with_var`, `.var_of`, `.variables`, `.as_platform` | no |
-| `dirsbase.base`, `.home`, `.config`, `.config_local`, `.data`, `.data_local` | no |
-| `dirsbase.cache`, `.state`, `.runtime`, `.executable` | no |
-| `dirsbase.is_from_environment`, `.join` | no |
-| `dirssite.site_config`, `.site_data`, `.search_path`, `.candidates` | no |
-| `dirssite.has_site_dirs`, `.list_separator_of` | no |
-| `dirsproject.project`, `.folder_name`, `.windows_suffix`, `.base_of` | no |
-| `dirsproject.dir`, `.config`, `.data`, `.cache`, `.state`, `.runtime` | no |
-| `dirsproject.file`, `.candidates` | no |
+Every case but one builds its own `DirsEnv` and reads no environment
+at all, including the cases that check the macOS and Windows rules; the
+exception calls `dirsenv.capture` and `dirsenv.capture_as` and asserts
+only the platform each resolves by. The suites assert that a set
+variable wins over a fallback and an empty one does not, that no home
+directory gives `None` rather than a path beginning with a slash, that
+a machine whose environment names nothing gets `None` rather than an
+invented path, that the runtime directory is never invented, that the
+user's directory comes first in a search path, and that each platform
+spells a project folder its own way — asserted cell by cell against the
+table rather than sampled.
 
 ## Licence
 

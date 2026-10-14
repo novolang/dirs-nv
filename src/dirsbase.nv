@@ -32,8 +32,55 @@
 // wants the directory to exist.  A caller that wants it creates it
 // with the `[fs]` effect it already has.
 
+use std.str
 use dirsenv
 use dirskind
+
+// The value a kind's own variable holds, or `""` when the platform
+// reads none for it or the variable is unset.
+//
+// `dirskind.variable_of` is spelled with its module in front, and every
+// call to a sibling module in this package is.  A bare call to a
+// sibling's function whose answer is a heap value strands the call's
+// result — every verdict green and `the run leaked`, exit 23 — and the
+// qualified spelling is the specification's own (SPEC § 9.1/§ 9.4) as
+// well as the one that does not.  The filing is
+// `memory-perceus/a-bare-call-to-a-sibling-modules-function-leaks-a-heap-result`;
+// it is closed, which is not a measurement against the 0.20.2
+// toolchain this package is verified on.
+fn from_variable(e: dirsenv.DirsEnv, k: dirskind.DirsKind) -> Str []
+    let name = dirskind.variable_of(k, e.platform)
+    if name == ""
+        ""
+    else
+        dirsenv.var_of(e, name)
+
+// The path a kind falls back to when its variable is unset, or `None`
+// when the kind has no fallback or there is no home directory for one
+// to be relative to.  A fallback is never answered without a home
+// directory: that would be a path beginning with a separator, which
+// says less than nothing does.
+fn from_fallback(e: dirsenv.DirsEnv, k: dirskind.DirsKind) -> ?Str []
+    let fallback = dirskind.fallback_of(k, e.platform)
+    if fallback == "" or e.home == ""
+        None
+    else
+        Some(under(e.home, fallback, dirskind.separator_of(e.platform)))
+
+// A relative path laid under a directory, with `/` written as the
+// platform's separator.  The join is a function rather than an
+// expression at each call site because a `+` written inside a match arm
+// is leaked by the 0.20.2 compiler whether or not the arm runs — a
+// shape `novo.lint` does not see and `novo test` reports as `the run
+// leaked`, exit 23.  The filing is
+// `language/a-join-in-a-match-arm-is-leaked-even-when-the-arm-is-not-taken`.
+// An empty relative path adds nothing, so the answer is the directory
+// itself rather than a trailing separator.
+fn under(base: Str, relative: Str, sep: Str) -> Str []
+    if relative == ""
+        base
+    else
+        base + sep + str.replace(relative, "/", sep)
 
 // Where a kind of directory is, under this snapshot's rules.
 //
@@ -51,7 +98,11 @@ use dirskind
 //         None       => println("no home directory")
 // ```
 pub fn base(e: dirsenv.DirsEnv, k: dirskind.DirsKind) -> ?Str []
-    todo("dirs-nv.dirsbase.base")
+    let set = from_variable(e, k)
+    if set != ""
+        Some(set)
+    else
+        from_fallback(e, k)
 
 // The user's home directory, or `None`.
 //
@@ -67,7 +118,10 @@ pub fn base(e: dirsenv.DirsEnv, k: dirskind.DirsKind) -> ?Str []
 //         None       => println("no home directory")
 // ```
 pub fn home(e: dirsenv.DirsEnv) -> ?Str []
-    todo("dirs-nv.dirsbase.home")
+    if e.home == ""
+        None
+    else
+        Some(e.home)
 
 // Configuration a user edits.
 //
@@ -84,7 +138,7 @@ pub fn home(e: dirsenv.DirsEnv) -> ?Str []
 //         None       => println("no home directory")
 // ```
 pub fn config(e: dirsenv.DirsEnv) -> ?Str []
-    todo("dirs-nv.dirsbase.config")
+    base(e, DirsConfig)
 
 // Configuration that should not follow a user between machines.
 //
@@ -101,7 +155,7 @@ pub fn config(e: dirsenv.DirsEnv) -> ?Str []
 //         None       => println("no home directory")
 // ```
 pub fn config_local(e: dirsenv.DirsEnv) -> ?Str []
-    todo("dirs-nv.dirsbase.config_local")
+    base(e, DirsConfigLocal)
 
 // Data a program wrote and must not lose.
 //
@@ -117,7 +171,7 @@ pub fn config_local(e: dirsenv.DirsEnv) -> ?Str []
 //         None       => println("no home directory")
 // ```
 pub fn data(e: dirsenv.DirsEnv) -> ?Str []
-    todo("dirs-nv.dirsbase.data")
+    base(e, DirsData)
 
 // Data that should not follow a user between machines.
 //
@@ -131,7 +185,7 @@ pub fn data(e: dirsenv.DirsEnv) -> ?Str []
 //         None       => println("no home directory")
 // ```
 pub fn data_local(e: dirsenv.DirsEnv) -> ?Str []
-    todo("dirs-nv.dirsbase.data_local")
+    base(e, DirsDataLocal)
 
 // Data a program can regenerate.
 //
@@ -150,7 +204,7 @@ pub fn data_local(e: dirsenv.DirsEnv) -> ?Str []
 //         None       => println("no home directory")
 // ```
 pub fn cache(e: dirsenv.DirsEnv) -> ?Str []
-    todo("dirs-nv.dirsbase.cache")
+    base(e, DirsCache)
 
 // State that is neither configuration nor precious data: logs,
 // history, a window layout, a recently-used list.
@@ -169,7 +223,7 @@ pub fn cache(e: dirsenv.DirsEnv) -> ?Str []
 //         None       => println("no home directory")
 // ```
 pub fn state(e: dirsenv.DirsEnv) -> ?Str []
-    todo("dirs-nv.dirsbase.state")
+    base(e, DirsState)
 
 // A directory for sockets, named pipes and lock files, cleared when
 // the user logs out.
@@ -189,7 +243,7 @@ pub fn state(e: dirsenv.DirsEnv) -> ?Str []
 //         None       => println("no runtime directory; use a temporary one")
 // ```
 pub fn runtime(e: dirsenv.DirsEnv) -> ?Str []
-    todo("dirs-nv.dirsbase.runtime")
+    base(e, DirsRuntime)
 
 // Where a user's own executables go.
 //
@@ -208,7 +262,7 @@ pub fn runtime(e: dirsenv.DirsEnv) -> ?Str []
 //         None       => println("this platform has no per-user bin directory")
 // ```
 pub fn executable(e: dirsenv.DirsEnv) -> ?Str []
-    todo("dirs-nv.dirsbase.executable")
+    base(e, DirsExecutable)
 
 // Whether a kind's answer came from the environment rather than from a
 // fallback.
@@ -226,7 +280,7 @@ pub fn executable(e: dirsenv.DirsEnv) -> ?Str []
 //     println("${dirsbase.is_from_environment(e, DirsCache)}")
 // ```
 pub fn is_from_environment(e: dirsenv.DirsEnv, k: dirskind.DirsKind) -> Bool []
-    todo("dirs-nv.dirsbase.is_from_environment")
+    from_variable(e, k) != ""
 
 // A path under one of the base directories.
 //
@@ -248,4 +302,5 @@ pub fn is_from_environment(e: dirsenv.DirsEnv, k: dirskind.DirsKind) -> Bool []
 //         None       => println("no home directory")
 // ```
 pub fn join(e: dirsenv.DirsEnv, k: dirskind.DirsKind, relative: Str) -> ?Str []
-    todo("dirs-nv.dirsbase.join")
+    let b = base(e, k)!
+    Some(under(b, relative, dirskind.separator_of(e.platform)))

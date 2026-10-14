@@ -1,11 +1,9 @@
 // dirskind_tests.nv — the table, checked against the specification it
 // comes from.
 //
-// RED ON PURPOSE: every assertion reaches `not implemented:
-// dirs-nv.dirskind.<fn>`.  What is asserted is that each kind names
-// the variable the XDG Base Directory Specification names, that the
-// fallbacks are the ones it gives, and that the two kinds with no
-// fallback say so.
+// What is asserted is that each kind names the variable the XDG Base
+// Directory Specification names, that the fallbacks are the ones it
+// gives, and that the two kinds with no fallback say so.
 
 use std.test
 use dirskind
